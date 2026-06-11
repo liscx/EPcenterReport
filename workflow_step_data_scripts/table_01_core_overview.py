@@ -24,9 +24,9 @@ BASE_DIR = r'd:\AutoWorkSkill\normalSkills\centerReport'
 DATA_DIR = os.path.join(BASE_DIR, 'Data', '202605')
 PERSIST_DIR = os.path.join(BASE_DIR, 'persistence_data')
 
-EJY_FILE = os.path.join(DATA_DIR, 'process_data', 'ejy_data_20260610.xlsx')
-BZT_FILE = os.path.join(DATA_DIR, 'process_data', 'bzt_data_20260610.xlsx')
-SJFW_FILE = os.path.join(DATA_DIR, 'source_data', '数据服务收益明细表_20260610.xlsx')
+EJY_FILE = os.path.join(DATA_DIR, 'process_data', 'ejy_data.xlsx')
+BZT_FILE = os.path.join(DATA_DIR, 'process_data', 'bzt_data.xlsx')
+SJFW_FILE = os.path.join(DATA_DIR, 'source_data', '数据服务收益明细表.xlsx')
 BP_FILE = os.path.join(PERSIST_DIR, 'bp数据表.xlsx')
 
 # 根据 config.yaml 的 month 动态生成路径

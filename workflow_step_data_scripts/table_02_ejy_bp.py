@@ -17,7 +17,7 @@ BASE_DIR = r'd:\AutoWorkSkill\normalSkills\centerReport'
 DATA_DIR = os.path.join(BASE_DIR, 'Data', '202605')
 PERSIST_DIR = os.path.join(BASE_DIR, 'persistence_data')
 
-EJY_FILE = os.path.join(DATA_DIR, 'process_data', 'ejy_data_20260610.xlsx')
+EJY_FILE = os.path.join(DATA_DIR, 'process_data', 'ejy_data.xlsx')
 
 _month = get_month()
 _year = get_year()
