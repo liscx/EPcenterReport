@@ -67,6 +67,16 @@ def process():
         exc_logger.add('table02', f'ejy_data 缺少列: {rev_col}')
         return
 
+    # ── 按分公司计算 BP 总额（运营 + 项目费相加）──
+    bp_sum_by_branch = df.groupby('分公司名称')['BP总额'].apply(
+        lambda x: x.apply(parse_num).sum()
+    ).to_dict()
+
+    # ── 按分公司获取全年收益（已是分公司级别，取第一个值）──
+    ytd_by_branch = df.groupby('分公司名称')['全年收益总金额（元）'].apply(
+        lambda x: parse_num(x.iloc[0])
+    ).to_dict()
+
     # ── 读取上期 extract ──
     prior = load_prior_table2(PRIOR_EXTRACT)
 
@@ -79,8 +89,17 @@ def process():
 
         this_val = parse_num(row[rev_col])
         ytd_val = parse_num(row.get('全年收益总金额（元）', float('nan')))
-        bp_total = parse_num(row.get('BP总额', float('nan')))
-        bp_rate_str = str(row.get('BP完成比例', '/')).strip()
+
+        # BP总额：使用分公司级别的合计值
+        bp_total = bp_sum_by_branch.get(branch, float('nan'))
+
+        # BP完成比例：分公司全年收益 / 分公司BP总额
+        branch_ytd = ytd_by_branch.get(branch, float('nan'))
+        if pd.notna(bp_total) and bp_total > 0 and pd.notna(branch_ytd):
+            bp_rate = branch_ytd / bp_total
+            bp_rate_str = f'{bp_rate:.2%}'
+        else:
+            bp_rate_str = '/'
 
         prev_val = prior.get(key, float('nan'))
 
@@ -92,7 +111,7 @@ def process():
             '环比变化': calculate_huanbi(this_val, prev_val),
             '全年收益(元）': ytd_val,
             'BP总额(元）': bp_total,
-            'BP完成比例': bp_rate_str if bp_rate_str not in ('/', 'nan', '') else '/',
+            'BP完成比例': bp_rate_str,
         })
 
     res_df = pd.DataFrame(res_rows)
