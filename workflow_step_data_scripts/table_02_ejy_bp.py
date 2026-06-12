@@ -109,6 +109,7 @@ def process():
             '本月收益(元）': this_val,
             '上月收益(元）': prev_val,
             '环比变化': calculate_huanbi(this_val, prev_val),
+            '同比变化':'',
             '全年收益(元）': ytd_val,
             'BP总额(元）': bp_total,
             'BP完成比例': bp_rate_str,

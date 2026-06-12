@@ -24,6 +24,9 @@ def process():
     # 读取「涨幅绿表」sheet（第4个sheet）
     df = pd.read_excel(BZT_FILE, sheet_name=3)
 
+    # 添加序号列
+    df.insert(0, '序', range(1, len(df) + 1))
+
     save_res_df(df, '标证通发证量（红绿榜）_1')
 
     # 追加到 extract 文件的表格11
