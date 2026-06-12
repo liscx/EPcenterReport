@@ -22,8 +22,8 @@ OUTPUT_EXTRACT = os.path.join(RES_DATA_DIR, f'extract_data{_month}月报.xlsx')
 
 
 def process():
-    # 读取「新接入专区」sheet（第3个sheet）
-    df = pd.read_excel(EJY_FILE, sheet_name=2)
+    # 读取「新接入专区」sheet（索引3）
+    df = pd.read_excel(EJY_FILE, sheet_name='新接入专区')
 
     save_res_df(df, '新点e交易-指标总览_1')
 
