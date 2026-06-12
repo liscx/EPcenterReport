@@ -26,10 +26,6 @@ EXPORT_TASKS = [
         "name": "26年新增项目及历史项目验收跟进",
     },
     {
-        "url": "https://docs.qq.com/doc/DVXdJaHVHbmhhcUt5",
-        "name": "标证通月报",
-    },
-    {
         "url": "https://docs.qq.com/sheet/DVWVCb1VPTm1EbVJj",
         "name": "数据服务收益明细表",
     },

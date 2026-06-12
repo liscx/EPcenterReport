@@ -30,10 +30,10 @@ BZT_FILE = os.path.join(DATA_DIR, 'process_data', 'bzt_data.xlsx')
 SJFW_FILE = os.path.join(DATA_DIR, 'source_data', '数据服务收益明细表.xlsx')
 BP_FILE = os.path.join(PERSIST_DIR, 'bp数据表.xlsx')
 
-# 根据 config.yaml 的 month 动态生成路径
-# 上期 extract = persistence_data/extract_data{上月}月报.xlsx
-# 本次输出     = Data/{_year}{_month:02d}/res_data/extract_data{本月}月报.xlsx
-PRIOR_EXTRACT = os.path.join(PERSIST_DIR, f'extract_data{_month - 1}月报.xlsx')
+# 上期 extract = Data/{上月年份}{上月}/process_data/extract_data{上月}月报.xlsx
+_prior_month = _month - 1 if _month > 1 else 12
+_prior_year = _year if _month > 1 else _year - 1
+PRIOR_EXTRACT = os.path.join(BASE_DIR, 'Data', f'{_prior_year}{_prior_month:02d}', 'process_data', f'extract_data{_prior_month}月报.xlsx')
 RES_DATA_DIR = os.path.join(DATA_DIR, 'res_data')
 OUTPUT_EXTRACT = os.path.join(RES_DATA_DIR, f'extract_data{_month}月报.xlsx')
 

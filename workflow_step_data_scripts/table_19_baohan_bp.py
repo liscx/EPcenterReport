@@ -21,7 +21,10 @@ PERSIST_DIR = os.path.join(BASE_DIR, 'persistence_data')
 SJFW_FILE = os.path.join(DATA_DIR, 'source_data', '数据服务收益明细表.xlsx')
 BP_FILE = os.path.join(PERSIST_DIR, '保函_bp.xlsx')
 
-PRIOR_EXTRACT = os.path.join(PERSIST_DIR, f'extract_data{_month - 1}月报.xlsx')
+# 上期 extract = Data/{上月年份}{上月}/process_data/extract_data{上月}月报.xlsx
+_prior_month = _month - 1 if _month > 1 else 12
+_prior_year = _year if _month > 1 else _year - 1
+PRIOR_EXTRACT = os.path.join(BASE_DIR, 'Data', f'{_prior_year}{_prior_month:02d}', 'process_data', f'extract_data{_prior_month}月报.xlsx')
 RES_DATA_DIR = os.path.join(DATA_DIR, 'res_data')
 OUTPUT_EXTRACT = os.path.join(RES_DATA_DIR, f'extract_data{_month}月报.xlsx')
 

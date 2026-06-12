@@ -10,7 +10,7 @@ from datetime import datetime
 
 import pandas as pd
 from docx import Document
-from utils import BASE_DIR
+from workflow_step_data_scripts.utils import BASE_DIR
 
 # ── 路径配置 ──────────────────────────────────────────────────────────
 # 动态计算月份：当前月份 - 2（6月读4月报，7月读5月报）
@@ -25,7 +25,7 @@ if report_month <= 0:
     report_year -= 1
 
 SOURCE_DIR = os.path.join(BASE_DIR, 'Data', f'{current_year}{current_month - 1:02d}' if current_month > 1 else f'{current_year - 1}12', 'source_data')
-OUTPUT_DIR = os.path.join(BASE_DIR, 'Data', f'{current_year}{current_month - 1:02d}' if current_month > 1 else f'{current_year - 1}12', 'res_data')
+OUTPUT_DIR = os.path.join(BASE_DIR, 'Data', f'{current_year}{current_month - 1:02d}' if current_month > 1 else f'{current_year - 1}12', 'process_data')
 
 
 def extract_tables(docx_path: str) -> list[pd.DataFrame]:
@@ -57,7 +57,7 @@ def save_to_excel(tables: list[pd.DataFrame], output_path: str):
 
 def main():
     # 动态搜索匹配的 docx 文件：运营中心营运产品收益月报（YYYY年M月）*.docx
-    pattern = os.path.join(SOURCE_DIR, f'运营中心营运产品收益月报（{report_year}年{report_month}月）*.docx')
+    pattern = os.path.join(SOURCE_DIR, f'运营中心营运产品收益月报（{report_year}年{report_month}月）.docx')
     matching_files = glob.glob(pattern)
 
     if not matching_files:
