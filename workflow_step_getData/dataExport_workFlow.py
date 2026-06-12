@@ -10,7 +10,13 @@ from export_tencent import export_tencent_process
 # --- 路径配置 ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_DIR = os.path.dirname(BASE_DIR)
-DATA_DIR = os.path.join(PROJECT_DIR, "Data")
+
+# 动态计算年月：当前月份 - 1（与报表月份一致）
+now = datetime.now()
+_year = now.year if now.month > 1 else now.year - 1
+_month = now.month - 1 if now.month > 1 else 12
+
+DATA_DIR = os.path.join(PROJECT_DIR, "Data", f"{_year}{_month:02d}", "source_data")
 SESSION_DIR = os.path.join(PROJECT_DIR, "session", "tencent_session")
 
 # --- 待导出的文档列表 ---
@@ -25,19 +31,13 @@ EXPORT_TASKS = [
     },
     {
         "url": "https://docs.qq.com/sheet/DVWVCb1VPTm1EbVJj",
-        "name": "投标保函收益明细表",
+        "name": "数据服务收益明细表",
     },
     {
         "url": "https://docs.qq.com/sheet/DTHdRUmJqUGRQeHdS",
         "name": "26年专区上量",
     },
 ]
-
-
-def make_timestamped_filename(name: str, ext: str = ".xlsx") -> str:
-    """生成带时间戳的文件名，格式：名称_YYYYMMDD_HHmmss.ext"""
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    return f"{name}_{ts}{ext}"
 
 
 async def main():
@@ -55,7 +55,7 @@ async def main():
     for i, task in enumerate(EXPORT_TASKS, 1):
         name = task["name"]
         url = task["url"]
-        filename = make_timestamped_filename(name)
+        filename = f"{name}.xlsx"
 
         print(f"\n[{i}/{len(EXPORT_TASKS)}] 正在导出: {name}")
         print(f"  URL: {url}")

@@ -6,17 +6,16 @@ table_03 — 新点e交易-新接入专区（表格三）
 """
 import os
 import pandas as pd
-from utils import save_res_df, get_month, get_year, exc_logger
+from utils import save_res_df, get_month, get_year, exc_logger, BASE_DIR
 
 # ── 路径配置 ──────────────────────────────────────────────────────────
-BASE_DIR = r'd:\AutoWorkSkill\normalSkills\centerReport'
-DATA_DIR = os.path.join(BASE_DIR, 'Data', '202605')
+_year = get_year()
+_month = get_month()
+DATA_DIR = os.path.join(BASE_DIR, 'Data', f'{_year}{_month:02d}')
 PERSIST_DIR = os.path.join(BASE_DIR, 'persistence_data')
 
 EJY_FILE = os.path.join(DATA_DIR, 'process_data', 'ejy_data.xlsx')
 
-_month = get_month()
-_year = get_year()
 RES_DATA_DIR = os.path.join(DATA_DIR, 'res_data')
 OUTPUT_EXTRACT = os.path.join(RES_DATA_DIR, f'extract_data{_month}月报.xlsx')
 

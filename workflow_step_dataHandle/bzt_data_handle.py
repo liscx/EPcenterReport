@@ -69,9 +69,14 @@ def save_to_excel(tables_dict, output_path):
 def main():
     # 路径配置
     now = datetime.now()
-    year_month = f"{now.year}{now.month - 1:02d}" if now.month > 1 else f"{now.year - 1}12"
-    timestamp = now.strftime("%Y%m%d")
-    base_dir = rf"D:\AutoWorkSkill\normalSkills\centerReport\Data\{year_month}"
+    year = now.year if now.month > 1 else now.year - 1
+    month = now.month - 1 if now.month > 1 else 12
+    year_month = f"{year}{month:02d}"
+
+    # 动态计算项目根目录
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_dir = os.path.dirname(script_dir)
+    base_dir = os.path.join(project_dir, "Data", year_month)
     source_dir = os.path.join(base_dir, "source_data")
     process_dir = os.path.join(base_dir, "process_data")
 

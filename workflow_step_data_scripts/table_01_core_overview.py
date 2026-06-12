@@ -17,11 +17,12 @@ table_01 — 核心数据总览（表格一）
 """
 import os
 import pandas as pd
-from utils import save_res_df, calculate_huanbi, get_month, get_year, exc_logger
+from utils import save_res_df, calculate_huanbi, get_month, get_year, exc_logger, BASE_DIR
 
 # ── 路径配置 ──────────────────────────────────────────────────────────
-BASE_DIR = r'd:\AutoWorkSkill\normalSkills\centerReport'
-DATA_DIR = os.path.join(BASE_DIR, 'Data', '202605')
+_year = get_year()
+_month = get_month()
+DATA_DIR = os.path.join(BASE_DIR, 'Data', f'{_year}{_month:02d}')
 PERSIST_DIR = os.path.join(BASE_DIR, 'persistence_data')
 
 EJY_FILE = os.path.join(DATA_DIR, 'process_data', 'ejy_data.xlsx')
@@ -31,9 +32,7 @@ BP_FILE = os.path.join(PERSIST_DIR, 'bp数据表.xlsx')
 
 # 根据 config.yaml 的 month 动态生成路径
 # 上期 extract = persistence_data/extract_data{上月}月报.xlsx
-# 本次输出     = Data/202605/res_data/extract_data{本月}月报.xlsx
-_month = get_month()
-_year = get_year()
+# 本次输出     = Data/{_year}{_month:02d}/res_data/extract_data{本月}月报.xlsx
 PRIOR_EXTRACT = os.path.join(PERSIST_DIR, f'extract_data{_month - 1}月报.xlsx')
 RES_DATA_DIR = os.path.join(DATA_DIR, 'res_data')
 OUTPUT_EXTRACT = os.path.join(RES_DATA_DIR, f'extract_data{_month}月报.xlsx')

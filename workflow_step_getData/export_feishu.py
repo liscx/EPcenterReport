@@ -2,11 +2,18 @@ import asyncio
 import os
 import json
 import argparse
+from datetime import datetime
 from playwright.async_api import async_playwright
 
 # --- 加载配置 ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_DIR = os.path.dirname(BASE_DIR)
 CONFIG_PATH = os.path.join(BASE_DIR, "config.json")
+
+# 动态计算年月：当前月份 - 1（与报表月份一致）
+now = datetime.now()
+_year = now.year if now.month > 1 else now.year - 1
+_month = now.month - 1 if now.month > 1 else 12
 
 def load_config():
     if os.path.exists(CONFIG_PATH):
@@ -20,7 +27,7 @@ CONFIG = load_config()
 CHROME_PATH = CONFIG.get("chrome_path", r"C:\Program Files\Google\Chrome\Application\chrome.exe")
 DEFAULT_URL = CONFIG.get("feishu", {}).get("url", "")
 DEFAULT_EXPORT_OPTION = CONFIG.get("feishu", {}).get("export_option", "限额saas")
-DEFAULT_SAVE_DIR = CONFIG.get("save_dir") or os.path.join(BASE_DIR, "resource")
+DEFAULT_SAVE_DIR = os.path.join(PROJECT_DIR, "Data", f"{_year}{_month:02d}", "source_data")
 USER_DATA_DIR = os.path.join(BASE_DIR, "feishu_session")
 
 

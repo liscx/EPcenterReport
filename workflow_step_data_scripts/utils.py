@@ -3,8 +3,8 @@ import os
 import yaml
 from datetime import datetime
 
-# Base paths
-BASE_DIR = r'd:\AutoWorkSkill\normalSkills\centerReport'
+# Base paths - 动态计算项目根目录（utils.py 的上一级目录）
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_PATH = os.path.join(BASE_DIR, 'config.yaml')
 MAPPING_CSV = os.path.join(BASE_DIR, 'branch_mapping.csv')
 
@@ -15,14 +15,11 @@ def load_config():
         return yaml.safe_load(f) or {}
 
 def get_year():
-    config = load_config()
-    return config.get('year') or datetime.now().year
+    now = datetime.now()
+    # 如果是1月，上个月是去年12月
+    return now.year if now.month > 1 else now.year - 1
 
 def get_month():
-    config = load_config()
-    month = config.get('month')
-    if month:
-        return int(month)
     now = datetime.now()
     return now.month - 1 if now.month > 1 else 12
 
@@ -68,17 +65,8 @@ def normalize_branch(name):
     return mapping.get(str(name).strip(), name)
 
 def save_to_sheet(df, sheet_name):
-    res_dir = get_res_data_dir()
-    if not os.path.exists(res_dir):
-        os.makedirs(res_dir)
-    
-    output_file = get_output_file()
-    if os.path.exists(output_file):
-        with pd.ExcelWriter(output_file, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
-            df.to_excel(writer, sheet_name=sheet_name, index=False)
-    else:
-        df.to_excel(output_file, sheet_name=sheet_name, index=False)
-    print(f"Saved to sheet: {sheet_name}")
+    # 保留函数签名，但不再写入 process_data_result.xlsx
+    pass
 
 def calculate_huanbi(this_val, last_val):
     if pd.isna(this_val) or pd.isna(last_val) or last_val == 0:

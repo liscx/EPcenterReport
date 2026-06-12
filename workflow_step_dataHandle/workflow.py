@@ -1,16 +1,15 @@
 # -*- coding: utf-8 -*-
 """
-一键执行所有 table 脚本的 workflow 调用脚本
+数据处理工作流脚本
 
 执行顺序：
-1. extract_data_by_report.py - 从 doc 文件提取表格数据（前置依赖）
-2. table_05_ejy_bp.py - e交易分公司收益汇总
-# 3. bzt_product_overview.py - 标证通产品概览
-# 4. yangcai_core_metrics.py - 阳光优采核心指标
-5. table_01 到 table_19 - 各表格数据处理
+1. bzt_data_handle.py - 标证通月报数据处理
+2. ejy_data_handle.py - e交易收益月报数据处理
+3. yangcai_data_handle.py - 阳光优采月报数据处理
+4. extract_data_by_report.py - 从运营中心月报提取表格数据
 
 使用方法：
-    cd D:\AutoWorkSkill\normalSkills\centerReport\workflow_step_data_scripts
+    cd D:\AutoWorkSkill\normalSkills\centerReport\workflow_step_dataHandle
     python workflow.py
 """
 
@@ -23,18 +22,21 @@ from datetime import datetime
 # 添加当前目录到 Python 路径
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+
 def print_banner(text, width=60):
     """打印带边框的标题"""
     print("\n" + "=" * width)
     print(f"  {text}")
     print("=" * width)
 
+
 def print_step(step_num, total, script_name, status="START"):
     """打印执行步骤信息"""
     print(f"\n[{step_num}/{total}] {status}: {script_name}")
     print("-" * 40)
 
-def run_script(script_name, module_name, func_name="process"):
+
+def run_script(script_name, module_name, func_name="main"):
     """
     执行指定脚本的主函数
 
@@ -62,31 +64,20 @@ def run_script(script_name, module_name, func_name="process"):
         error_msg = f"{str(e)}\n{traceback.format_exc()}"
         return False, elapsed, error_msg
 
+
 def main():
     """主执行函数"""
-    print_banner("中心报表数据处理 Workflow")
+    print_banner("数据处理工作流")
     print(f"执行时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"工作目录: {os.path.dirname(os.path.abspath(__file__))}")
 
     # 定义要执行的脚本列表
     # 格式: (显示名称, 模块名, 函数名)
     scripts = [
-
-        # Table 01-19
-        ("Table 01 - 核心数据总览", "table_01_core_overview", "process"),
-        ("Table 02 - 新点e交易-分公司收益", "table_02_ejy_bp", "process"),
-        ("Table 03 - e交易-新专区接入情况", "table_03_ejy_new", "process"),
-        ("Table 04 - e交易-收益跌幅TOP10", "table_04_ejy_last10", "process"),
-        # ("Table 05 - 区域市场化分公司收益", "table_05_qysch_bp", "process"),
-        # ("Table 06 - 区域市场化收益跌幅TOP10", "table_06_qysch_last10", "process"),
-        ("Table 07 - 阳光优采-核心指标", "table_07_yangcai_metrics", "process"),
-        ("Table 08 - 阳光优采-分公司收益", "table_08_yangcai_bp", "process"),
-        ("Table 09 - 标证通-分公司收益", "table_09_bzt_bp", "process"),
-        ("Table 10 - 标证通-红榜", "table_10_bzt_red", "process"),
-        ("Table 11 - 标证通-绿榜", "table_11_bzt_green", "process"),
-        ("Table 12 - 标讯-分公司收益", "table_12_biaoxun_bp", "process"),
-        ("Table 13 - 标讯-转化率", "table_13_biaoxun_zhuanhua", "process"),
-        ("Table 19 - 保函-分公司收益", "table_19_baohan_bp", "process"),
+        ("标证通月报数据处理", "bzt_data_handle", "main"),
+        ("e交易收益月报数据处理", "ejy_data_handle", "main"),
+        ("阳光优采月报数据处理", "yangcai_data_handle", "main"),
+        ("运营中心月报表格提取", "extract_data_by_report", "main"),
     ]
 
     total_scripts = len(scripts)
@@ -150,19 +141,18 @@ def main():
     # 返回状态码
     return 0 if fail_count == 0 else 1
 
+
 if __name__ == '__main__':
     try:
         exit_code = main()
         print(f"\n{'='*60}")
-        print(f"  Workflow 执行完成 (退出码: {exit_code})")
+        print(f"  工作流执行完成 (退出码: {exit_code})")
         print(f"{'='*60}\n")
         sys.exit(exit_code)
     except KeyboardInterrupt:
         print("\n\n[INTERRUPT] 用户中断执行")
         sys.exit(130)
     except Exception as e:
-        print(f"\n\n[ERROR] Workflow 执行异常: {e}")
+        print(f"\n\n[ERROR] 工作流执行异常: {e}")
         traceback.print_exc()
         sys.exit(1)
-
-        337308+288929+228052+254216+184895+143338+56800+208052+125128+101460+31413+119277+76046+52873+71729+72408+86465+75280+151311+40498+15484+31469+36776+6092+7866+80323+68528+1514+261
