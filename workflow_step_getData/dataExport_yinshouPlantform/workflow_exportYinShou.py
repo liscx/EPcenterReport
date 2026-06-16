@@ -47,6 +47,9 @@ def main():
         export_revenue_data,
         _get_report_month_str,
     )
+    from export_qingbiao import (
+        export_revenue_data as export_qingbiao_data,
+    )
 
     # 输出目录：Data/{月份}/source_data
     project_root = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -60,7 +63,8 @@ def main():
         ("导航到运营中心视角", "navigate_to_yunying_center"),
         ("点击标桥收益统计侧边栏", "click_biaoqiao_sidebar"),
         ("设置筛选条件并搜索", "set_filter_conditions"),
-        ("采集收益数据并导出Excel", "export_revenue_data"),
+        ("采集标桥收益数据并导出Excel", "export_revenue_data"),
+        ("采集清标工具数据并导出Excel", "export_qingbiao_data"),
     ]
 
     total_steps = len(steps)
@@ -76,6 +80,7 @@ def main():
         "click_biaoqiao_sidebar": click_biaoqiao_sidebar,
         "set_filter_conditions": set_filter_conditions,
         "export_revenue_data": lambda d: export_revenue_data(d, output_dir),
+        "export_qingbiao_data": lambda d: export_qingbiao_data(d, output_dir),
     }
 
     for idx, (display_name, func_name) in enumerate(steps, 1):

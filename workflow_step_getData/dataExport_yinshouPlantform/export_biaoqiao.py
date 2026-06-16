@@ -349,14 +349,38 @@ def export_revenue_data(driver, output_dir):
         try:
             # 使用 JS 点击，解决 "element click intercepted"
             driver.execute_script("arguments[0].click();", target_btn)
-            time.sleep(3)
+            print(f"    → 已点击查看按钮，等待详情弹窗加载...")
+
+            # 无限等待二级详情弹窗出现（其他营运项目加载较慢，用10秒间隔）
+            check_interval = 10 if product_name == "其他营运项目" else 2
+            while True:
+                popups = driver.find_elements(By.CSS_SELECTOR, "iframe.mini-iframe, .mini-window iframe")
+                if popups:
+                    print(f"    → 详情弹窗已加载")
+                    break
+                time.sleep(check_interval)
 
             # 进入二级详情弹窗
             if _switch_to_top_popup_iframe(driver):
-                rows = _parse_detail_grid_html(driver)
+                # 其他营运项目加载较慢，先等1分钟，数据为0则每分钟重试，最多5分钟
+                if product_name == "其他营运项目":
+                    print(f"    → 其他营运项目：强制等待1分钟...")
+                    time.sleep(60)
+                    rows = _parse_detail_grid_html(driver)
+                    waited = 60
+                    while len(rows) == 0 and waited < 300:
+                        print(f"    → 数据量为0，继续等待1分钟...（已等待{waited}秒）")
+                        time.sleep(60)
+                        waited += 60
+                        rows = _parse_detail_grid_html(driver)
+                    if len(rows) == 0:
+                        print(f"    → [警告] 已等待5分钟，数据量仍为0")
+                else:
+                    rows = _parse_detail_grid_html(driver)
+
                 print(f"    → 获取到 {len(rows)} 条数据")
                 _write_to_sheet(wb, product_name, rows)
-                
+
                 # 关闭二级弹窗
                 # 注意：此时在二级 iframe 内，_close_top_window 会尝试切回一级 iframe 执行关闭
                 _close_top_window(driver)
@@ -383,6 +407,7 @@ def export_revenue_data(driver, output_dir):
 def _write_to_sheet(wb, sheet_name, rows):
     """
     将数据写入 Excel 的指定 sheet。
+    使用显式行索引确保不出现空行。
     """
     safe_name = sheet_name.replace("/", "").replace("\\", "").replace("*", "")[:31]
     if safe_name in wb.sheetnames:
@@ -390,19 +415,33 @@ def _write_to_sheet(wb, sheet_name, rows):
     else:
         ws = wb.create_sheet(title=safe_name)
 
-    if ws.max_row <= 1 and ws.cell(1, 1).value is None:
-        ws.append(["序", "分公司", "项目名称", "子产品", "订单金额（元）", "收益金额（元）", "来源"])
+    # 确定数据写入的具体物理行号
+    # 统计 A 列中真正有值的行数，以避开 openpyxl 的 max_row 虚假位移
+    real_data_rows = 0
+    for row in ws.iter_rows(min_row=1, max_row=ws.max_row, min_col=1, max_col=1, values_only=True):
+        if row[0] is not None:
+            real_data_rows += 1
+    
+    if real_data_rows == 0:
+        # 完全没有数据，强制在第 1 行写入表头
+        cols = ["序", "分公司", "项目名称", "子产品", "订单金额（元）", "收益金额（元）", "来源"]
+        for i, val in enumerate(cols, 1):
+            ws.cell(row=1, column=i, value=val)
+        write_row = 2
+    else:
+        # 已经有数据了，从下一行开始追加
+        write_row = real_data_rows + 1
 
-    for row in rows:
-        ws.append([
-            row.get("序", ""),
-            row.get("分公司", ""),
-            row.get("项目名称", ""),
-            row.get("子产品", ""),
-            row.get("订单金额（元）", ""),
-            row.get("收益金额（元）", ""),
-            row.get("来源", ""),
-        ])
+    # 显式按行号写入数据，不使用可能导致空行的 append
+    for data in rows:
+        ws.cell(row=write_row, column=1, value=data.get("序", ""))
+        ws.cell(row=write_row, column=2, value=data.get("分公司", ""))
+        ws.cell(row=write_row, column=3, value=data.get("项目名称", ""))
+        ws.cell(row=write_row, column=4, value=data.get("子产品", ""))
+        ws.cell(row=write_row, column=5, value=data.get("订单金额（元）", ""))
+        ws.cell(row=write_row, column=6, value=data.get("收益金额（元）", ""))
+        ws.cell(row=write_row, column=7, value=data.get("来源", ""))
+        write_row += 1
 
 
 if __name__ == "__main__":
