@@ -28,6 +28,7 @@ PERSIST_DIR = os.path.join(BASE_DIR, 'persistence_data')
 EJY_FILE = os.path.join(DATA_DIR, 'process_data', 'ejy_data.xlsx')
 BZT_FILE = os.path.join(DATA_DIR, 'process_data', 'bzt_data.xlsx')
 SJFW_FILE = os.path.join(DATA_DIR, 'source_data', '数据服务收益明细表.xlsx')
+BIAOQIAO_FILE = os.path.join(DATA_DIR, 'source_data', '营收平台标桥收益数据.xlsx')
 BP_FILE = os.path.join(PERSIST_DIR, 'bp数据表.xlsx')
 
 # 上期 extract = Data/{当前报告月}/process_data/extract_data{上月}月报.xlsx
@@ -49,10 +50,10 @@ PRODUCTS = [
     {'name': '传统介质',               'dept': '投标服务产品部',     'source_type': 'bzt'},
     {'name': '专家云签',               'dept': '投标服务产品部',     'source_type': 'bzt'},
     {'name': '电子签章',               'dept': '投标服务产品部',     'source_type': 'bzt'},
-    {'name': '投标文件制作软件(营运）', 'dept': '投标服务产品部',     'source_type': 'none'},
-    {'name': 'AI编标',                 'dept': '投标服务产品部',     'source_type': 'none'},
-    {'name': '智能排版',               'dept': '投标服务产品部',     'source_type': 'none'},
-    {'name': '标书检查（含清标工具）', 'dept': '投标服务产品部',     'source_type': 'none'},
+    {'name': '投标文件制作软件(营运）', 'dept': '投标服务产品部',     'source_type': 'biaoqiao', 'biaoqiao_sheets': ['标桥工具版本', '其他营运项目']},
+    {'name': 'AI编标',                 'dept': '投标服务产品部',     'source_type': 'biaoqiao', 'biaoqiao_sheets': ['AI编标']},
+    {'name': '智能排版',               'dept': '投标服务产品部',     'source_type': 'biaoqiao', 'biaoqiao_sheets': ['蔓延排版精灵', '云端保排版王']},
+    {'name': '标书检查（含清标工具）', 'dept': '投标服务产品部',     'source_type': 'biaoqiao', 'biaoqiao_sheets': ['标书检查', '清标工具']},
     {'name': '素材市场',               'dept': '投标服务产品部',     'source_type': 'none'},
     {'name': '组合营销',               'dept': '投标服务产品部',     'source_type': 'none'},
     {'name': '统一支付平台',           'dept': '数据服务产品部',     'source_type': 'sjfw', 'sjfw_module': '统一支付平台（营运）'},
@@ -138,6 +139,37 @@ def load_sjfw_revenue(sjfw_df, module_keyword, month):
     return matched['销售毛利(元)'].apply(parse_num).sum()
 
 
+def load_biaoqiao_revenue(biaoqiao_file, sheet_names):
+    """
+    标桥类产品本月收益：从标桥收益数据文件中读取指定sheet，
+    对各sheet的「收益金额（元）」或「收益（元）」列求和。
+    """
+    if not os.path.exists(biaoqiao_file):
+        exc_logger.add('table01', f'标桥收益数据文件不存在: {biaoqiao_file}')
+        return 0
+
+    total = 0
+    try:
+        xls = pd.ExcelFile(biaoqiao_file)
+        for sheet_name in sheet_names:
+            if sheet_name not in xls.sheet_names:
+                exc_logger.add('table01', f'标桥收益数据缺少sheet: {sheet_name}')
+                continue
+            df = pd.read_excel(xls, sheet_name=sheet_name)
+            # 兼容两种列名：收益金额（元）或 收益（元）
+            if '收益金额（元）' in df.columns:
+                total += df['收益金额（元）'].apply(parse_num).sum()
+            elif '收益（元）' in df.columns:
+                total += df['收益（元）'].apply(parse_num).sum()
+            else:
+                exc_logger.add('table01', f'sheet {sheet_name} 缺少收益列')
+    except Exception as e:
+        exc_logger.add('table01', f'读取标桥收益数据失败: {e}')
+        return 0
+
+    return total
+
+
 def load_prior_data(extract_file, product_name):
     """
     从上期 extract 文件的「表格1」中读取对应产品的上月收益和全年收益。
@@ -216,6 +248,8 @@ def process():
             this_revenue = load_bzt_revenue(bzt_df, name, month)
         elif source_type == 'sjfw':
             this_revenue = load_sjfw_revenue(sjfw_df, p['sjfw_module'], month)
+        elif source_type == 'biaoqiao':
+            this_revenue = load_biaoqiao_revenue(BIAOQIAO_FILE, p['biaoqiao_sheets'])
         else:
             this_revenue = float('nan')
 
