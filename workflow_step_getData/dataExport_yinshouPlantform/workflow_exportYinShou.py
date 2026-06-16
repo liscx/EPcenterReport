@@ -49,7 +49,7 @@ def main():
     )
 
     # 输出目录：Data/{月份}/source_data
-    project_root = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+    project_root = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", ".."))
     month_str = _get_report_month_str()
     output_dir = os.path.join(project_root, "Data", month_str, "source_data")
 

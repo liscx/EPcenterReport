@@ -312,7 +312,7 @@ def export_revenue_data(driver, output_dir):
     """
     month_str = _get_report_month_str()
     os.makedirs(output_dir, exist_ok=True)
-    output_file = os.path.join(output_dir, f"营收平台标桥收益数据_{month_str}.xlsx")
+    output_file = os.path.join(output_dir, "营收平台标桥收益数据.xlsx")
 
     # 第一步：打开产品收益主弹框
     click_view_button_in_results(driver)
@@ -390,7 +390,7 @@ def _write_to_sheet(wb, sheet_name, rows):
     else:
         ws = wb.create_sheet(title=safe_name)
 
-    if ws.max_row == 1 and ws.cell(1, 1).value is None:
+    if ws.max_row <= 1 and ws.cell(1, 1).value is None:
         ws.append(["序", "分公司", "项目名称", "子产品", "订单金额（元）", "收益金额（元）", "来源"])
 
     for row in rows:
