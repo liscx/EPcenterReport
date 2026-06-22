@@ -80,9 +80,12 @@ def process():
 
     os.makedirs(RES_DATA_DIR, exist_ok=True)
     # 追加写入同一个extract文件
-    with pd.ExcelWriter(OUTPUT_EXTRACT, mode='a', engine='openpyxl',
-                        if_sheet_exists='replace') as writer:
-        output.to_excel(writer, sheet_name='表格6', index=False)
+    if os.path.exists(OUTPUT_EXTRACT):
+        with pd.ExcelWriter(OUTPUT_EXTRACT, engine='openpyxl', mode='a',
+                            if_sheet_exists='replace') as writer:
+            output.to_excel(writer, sheet_name='表格6', index=False)
+    else:
+        output.to_excel(OUTPUT_EXTRACT, sheet_name='表格6', index=False)
 
     exc_logger.save()
     print('表格六（收益跌幅TOP10）已保存')

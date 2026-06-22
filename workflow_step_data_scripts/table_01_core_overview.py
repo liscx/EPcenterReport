@@ -29,6 +29,7 @@ EJY_FILE = os.path.join(DATA_DIR, 'process_data', 'ejy_data.xlsx')
 BZT_FILE = os.path.join(DATA_DIR, 'process_data', 'bzt_data.xlsx')
 SJFW_FILE = os.path.join(DATA_DIR, 'source_data', '数据服务收益明细表.xlsx')
 BIAOQIAO_FILE = os.path.join(DATA_DIR, 'source_data', '营收平台标桥收益数据.xlsx')
+QYSCH_FILE = os.path.join(DATA_DIR, 'source_data', '区域市场化当月.xlsx')
 BP_FILE = os.path.join(PERSIST_DIR, 'bp数据表.xlsx')
 
 # 上期 extract = Data/{当前报告月}/process_data/extract_data{上月}月报.xlsx
@@ -39,11 +40,11 @@ OUTPUT_EXTRACT = os.path.join(RES_DATA_DIR, f'extract_data{_month}月报.xlsx')
 
 
 # ── 产品定义 ──────────────────────────────────────────────────────────
-# source_type: 'ejy' | 'bzt' | 'sjfw' | 'none'
+# source_type: 'ejy' | 'bzt' | 'sjfw' | 'biaoqiao' | 'qysch' | 'none'
 # sjfw_module: 数据服务产品在「模块」列中匹配的关键词
 PRODUCTS = [
     {'name': '新点e交易平台',         'dept': '企业数字采购产品部', 'source_type': 'ejy'},
-    {'name': '区域市场化',             'dept': '企业数字采购产品部', 'source_type': 'none'},
+    {'name': '区域市场化',             'dept': '企业数字采购产品部', 'source_type': 'qysch'},
     {'name': '阳光优采',               'dept': '企业数字采购产品部', 'source_type': 'none'},
     {'name': '标证通',                 'dept': '投标服务产品部',     'source_type': 'bzt'},
     {'name': '标讯',                   'dept': '投标服务产品部',     'source_type': 'bzt'},
@@ -170,6 +171,26 @@ def load_biaoqiao_revenue(biaoqiao_file, sheet_names):
     return total
 
 
+def load_qysch_revenue(qysch_file):
+    """
+    区域市场化本月收益：从区域市场化当月.xlsx 中读取所有分公司「实得收益」列求和。
+    """
+    if not os.path.exists(qysch_file):
+        exc_logger.add('table01', f'区域市场化当月文件不存在: {qysch_file}')
+        return 0
+
+    try:
+        df = pd.read_excel(qysch_file)
+        if '实得收益' in df.columns:
+            return df['实得收益'].apply(parse_num).sum()
+        else:
+            exc_logger.add('table01', '区域市场化当月文件缺少「实得收益」列')
+            return 0
+    except Exception as e:
+        exc_logger.add('table01', f'读取区域市场化数据失败: {e}')
+        return 0
+
+
 def load_prior_data(extract_file, product_name):
     """
     从上期 extract 文件的「表格1」中读取对应产品的上月收益和全年收益。
@@ -250,6 +271,8 @@ def process():
             this_revenue = load_sjfw_revenue(sjfw_df, p['sjfw_module'], month)
         elif source_type == 'biaoqiao':
             this_revenue = load_biaoqiao_revenue(BIAOQIAO_FILE, p['biaoqiao_sheets'])
+        elif source_type == 'qysch':
+            this_revenue = load_qysch_revenue(QYSCH_FILE)
         else:
             this_revenue = float('nan')
 
@@ -298,7 +321,12 @@ def process():
 
     # 同时保存到独立 extract 文件（供下月作为上期数据）
     os.makedirs(RES_DATA_DIR, exist_ok=True)
-    res_df.to_excel(OUTPUT_EXTRACT, sheet_name='表格1', index=False)
+    if os.path.exists(OUTPUT_EXTRACT):
+        with pd.ExcelWriter(OUTPUT_EXTRACT, engine='openpyxl', mode='a',
+                            if_sheet_exists='replace') as writer:
+            res_df.to_excel(writer, sheet_name='表格1', index=False)
+    else:
+        res_df.to_excel(OUTPUT_EXTRACT, sheet_name='表格1', index=False)
 
     exc_logger.save()
     print(f'表格一已保存: {OUTPUT_EXTRACT}')

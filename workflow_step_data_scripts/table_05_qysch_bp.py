@@ -132,7 +132,12 @@ def process():
 
     # 同时保存到独立 extract 文件（供下月作为上期数据）
     os.makedirs(RES_DATA_DIR, exist_ok=True)
-    output.to_excel(OUTPUT_EXTRACT, sheet_name='表格5', index=False)
+    if os.path.exists(OUTPUT_EXTRACT):
+        with pd.ExcelWriter(OUTPUT_EXTRACT, engine='openpyxl', mode='a',
+                            if_sheet_exists='replace') as writer:
+            output.to_excel(writer, sheet_name='表格5', index=False)
+    else:
+        output.to_excel(OUTPUT_EXTRACT, sheet_name='表格5', index=False)
 
     exc_logger.save()
     print('表格五（区域市场化BP）已保存')

@@ -15,6 +15,7 @@ fill_docx_model — 将 extract_data 月报 Excel 数据填入 docx 模型文件
   - Excel 中不存在的 sheet 对应的 docx 表格保持原样（仅表头）
 """
 import os
+import json
 import pandas as pd
 from docx import Document
 from docx.oxml.ns import qn
@@ -28,6 +29,7 @@ _month = get_month()
 _year = get_year()
 RES_DATA_DIR = os.path.join(BASE_DIR, 'Data', f'{_year}{_month:02d}', 'res_data')
 EXTRACT_FILE = os.path.join(RES_DATA_DIR, f'extract_data{_month}月报.xlsx')
+PARAGRAPH_JSON = os.path.join(RES_DATA_DIR, 'report_paragraphs.json')
 OUTPUT_DOCX = os.path.join(RES_DATA_DIR, '运营中心营运产品收益月报.docx')
 
 
@@ -102,6 +104,38 @@ def align_columns(df, table):
     直接按顺序返回 DataFrame，不做列名匹配。
     """
     return df
+
+
+def fill_paragraph_placeholders(doc, json_file):
+    """将 docx 段落中的 {{key}} 占位符替换为 JSON 中的文本。"""
+    if not os.path.exists(json_file):
+        print(f'段落数据文件不存在，跳过占位符替换: {json_file}')
+        return
+
+    with open(json_file, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+
+    count = 0
+    for p in doc.paragraphs:
+        for key, value in data.items():
+            placeholder = '{{' + key + '}}'
+            if placeholder in p.text:
+                # 遍历 runs 替换文本（保留格式）
+                for run in p.runs:
+                    if placeholder in run.text:
+                        run.text = run.text.replace(placeholder, value)
+                        count += 1
+                # 如果占位符跨了多个 runs，用完整段落文本替换
+                if placeholder in p.text:
+                    full_text = p.text.replace(placeholder, value)
+                    # 清空所有 runs，把替换后的文本写入第一个 run
+                    if p.runs:
+                        for r in p.runs:
+                            r.text = ''
+                        p.runs[0].text = full_text
+                        count += 1
+
+    print(f'占位符替换完成，共替换 {count} 处')
 
 
 def fill_table_from_excel(table, df):
@@ -191,6 +225,9 @@ def process():
             fill_table_19(table, df)
         else:
             fill_table_from_excel(table, df)
+
+    # 替换段落占位符（{{ejy1}} 等）
+    fill_paragraph_placeholders(doc, PARAGRAPH_JSON)
 
     # 保存输出文件
     os.makedirs(RES_DATA_DIR, exist_ok=True)
