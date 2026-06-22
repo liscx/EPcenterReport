@@ -77,8 +77,8 @@ def main():
         ("Table 02 - 新点e交易-分公司收益", "table_02_ejy_bp", "process"),
         ("Table 03 - e交易-新专区接入情况", "table_03_ejy_new", "process"),
         ("Table 04 - e交易-收益跌幅TOP10", "table_04_ejy_last10", "process"),
-        # ("Table 05 - 区域市场化分公司收益", "table_05_qysch_bp", "process"),
-        # ("Table 06 - 区域市场化收益跌幅TOP10", "table_06_qysch_last10", "process"),
+        ("Table 05 - 区域市场化分公司收益", "table_05_qysch_bp", "process"),
+        ("Table 06 - 区域市场化收益跌幅TOP10", "table_06_qysch_last10", "process"),
         ("Table 07 - 阳光优采-核心指标", "table_07_yangcai_metrics", "process"),
         ("Table 08 - 阳光优采-分公司收益", "table_08_yangcai_bp", "process"),
         ("Table 09 - 标证通-分公司收益", "table_09_bzt_bp", "process"),
@@ -86,6 +86,7 @@ def main():
         ("Table 11 - 标证通-绿榜", "table_11_bzt_green", "process"),
         ("Table 12 - 标讯-分公司收益", "table_12_biaoxun_bp", "process"),
         ("Table 13 - 标讯-转化率", "table_13_biaoxun_zhuanhua", "process"),
+        ("Table 14 - 标桥-分公司收益", "table_14_biaoqiao_bp", "process"),
         ("Table 19 - 保函-分公司收益", "table_19_baohan_bp", "process"),
     ]
 
@@ -126,6 +127,23 @@ def main():
             results.append((display_name, "失败", elapsed, error_msg))
 
     overall_elapsed = time.time() - overall_start
+
+    # ── 按表格序号排序 extract 文件中的 sheet ──
+    try:
+        from utils import get_year, get_month, BASE_DIR
+        import openpyxl
+        _y, _m = get_year(), get_month()
+        extract_file = os.path.join(BASE_DIR, 'Data', f'{_y}{_m:02d}', 'res_data', f'extract_data{_m}月报.xlsx')
+        if os.path.exists(extract_file):
+            wb = openpyxl.load_workbook(extract_file)
+            # 按 sheet 名中的数字排序（表格1, 表格2, ..., 表格19）
+            sorted_names = sorted(wb.sheetnames, key=lambda s: int(''.join(filter(str.isdigit, s))) if any(c.isdigit() for c in s) else 999)
+            wb._sheets = [wb[name] for name in sorted_names]
+            wb.save(extract_file)
+            wb.close()
+            print(f"\n[SORT] extract sheet 顺序已排序: {extract_file}")
+    except Exception as e:
+        print(f"\n[SORT] sheet 排序失败: {e}")
 
     # 打印执行摘要
     print_banner("执行摘要")

@@ -218,8 +218,12 @@ def process():
     res_df = pd.DataFrame(rows)
     os.makedirs(RES_DATA_DIR, exist_ok=True)
     output_file = os.path.join(RES_DATA_DIR, f'extract_data{_month}月报.xlsx')
-    with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
-        res_df.to_excel(writer, sheet_name='表格14', index=False)
+    if os.path.exists(output_file):
+        with pd.ExcelWriter(output_file, engine='openpyxl', mode='a',
+                            if_sheet_exists='replace') as writer:
+            res_df.to_excel(writer, sheet_name='表格14', index=False)
+    else:
+        res_df.to_excel(output_file, sheet_name='表格14', index=False)
     print(f'表格十四已保存: {output_file}')
 
 
