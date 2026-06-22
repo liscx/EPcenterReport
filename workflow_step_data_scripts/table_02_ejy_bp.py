@@ -9,7 +9,7 @@ table_02 — 新点e交易-分公司收益（表格二）
 """
 import os
 import pandas as pd
-from utils import (normalize_branch, save_res_df, calculate_huanbi,
+from utils import (normalize_branch, save_res_df, calculate_huanbi, check_revenue_anomaly,
                    get_month, get_year, exc_logger, BASE_DIR)
 
 # ── 路径配置 ──────────────────────────────────────────────────────────
@@ -25,6 +25,10 @@ _prior_month = _month - 1 if _month > 1 else 12
 PRIOR_EXTRACT = os.path.join(BASE_DIR, 'Data', f'{_year}{_month:02d}', 'process_data', f'extract_data{_prior_month}月报.xlsx')
 RES_DATA_DIR = os.path.join(DATA_DIR, 'res_data')
 OUTPUT_EXTRACT = os.path.join(RES_DATA_DIR, f'extract_data{_month}月报.xlsx')
+
+# 同期数据（去年同期）
+_last_year = _year - 1
+TONGQI_FILE = os.path.join(DATA_DIR, 'source_data', '新点电子交易平台同期.xlsx')
 
 
 def parse_num(val):
@@ -55,6 +59,35 @@ def load_prior_table2(extract_file):
         return {}
 
 
+def load_tongqi_data(tongqi_file):
+    """
+    读取同期数据（去年同期），按分公司汇总收益。
+    平台类型为 SAAS 或落地的归入 BP 类型"运营"。
+    返回 dict: 分公司名称 → 去年同月收益
+    """
+    if not os.path.exists(tongqi_file):
+        exc_logger.add('table02', f'同期数据文件不存在: {tongqi_file}')
+        return {}
+    try:
+        df = pd.read_excel(tongqi_file)
+        # 只取平台类型为 SAAS 或落地的
+        df = df[df['平台类型'].isin(['SAAS', '落地'])]
+
+        # 加载分公司映射表
+        mapping_file = os.path.join(PERSIST_DIR, '分公司映射表.xlsx')
+        if os.path.exists(mapping_file):
+            mapping_df = pd.read_excel(mapping_file)
+            name_map = dict(zip(mapping_df['源表分公司名称'], mapping_df['月报输出分公司名称']))
+            df['分公司'] = df['分公司'].map(name_map).fillna(df['分公司'])
+
+        # 按分公司汇总收益
+        result = df.groupby('分公司')['收益'].apply(lambda x: x.apply(parse_num).sum()).to_dict()
+        return result
+    except Exception as e:
+        exc_logger.add('table02', f'读取同期数据失败: {e}')
+        return {}
+
+
 def process():
     month = get_month()
 
@@ -81,6 +114,9 @@ def process():
     # ── 读取上期 extract ──
     prior = load_prior_table2(PRIOR_EXTRACT)
 
+    # ── 读取同期数据（去年同期）──
+    tongqi = load_tongqi_data(TONGQI_FILE)
+
     # ── 构建结果 ──
     res_rows = []
     for _, row in df.iterrows():
@@ -104,13 +140,22 @@ def process():
 
         prev_val = prior.get(key, float('nan'))
 
+        # 同比：运营类型的从同期数据获取，项目费的为空
+        if bp_type == '运营':
+            tongqi_val = tongqi.get(branch, float('nan'))
+        else:
+            tongqi_val = float('nan')
+
+        # 异常检测：收益为空或负数
+        this_val = check_revenue_anomaly('table02', f"{branch}({bp_type})", this_val, prev_val)
+
         res_rows.append({
             '分公司名称': branch,
             'BP类型': bp_type,
             '本月收益(元）': this_val,
             '上月收益(元）': prev_val,
             '环比变化': calculate_huanbi(this_val, prev_val),
-            '同比变化':'',
+            '同比变化': calculate_huanbi(this_val, tongqi_val),
             '全年收益(元）': ytd_val,
             'BP总额(元）': bp_total,
             'BP完成比例': bp_rate_str,
