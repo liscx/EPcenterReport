@@ -29,6 +29,10 @@ def click_biaoqiao_sidebar(driver):
     """
     print("正在导航到 标桥收益统计...")
 
+    # 先切回默认内容（避免之前在 iframe 中）
+    driver.switch_to.default_content()
+    time.sleep(1)
+
     # --- 第一步：点击一级菜单"标桥" ---
     try:
         biaoqiao_menu = WebDriverWait(driver, 10).until(
@@ -58,12 +62,19 @@ def click_biaoqiao_sidebar(driver):
         raise
 
 
-def _get_report_month():
+def _get_report_month(year=None, month=None):
     """
     根据当前日期计算月报月份。
     当前 6 月 → 月报为 5 月 → 返回 '2026-05'
     当前 7 月 → 月报为 6 月 → 返回 '2026-06'
+
+    Args:
+        year: 指定年份，如 2025
+        month: 指定月份，如 5
     """
+    if year is not None and month is not None:
+        return f"{year}-{month:02d}"
+
     today = datetime.today()
     year = today.year
     month = today.month - 1  # 上月
@@ -73,7 +84,7 @@ def _get_report_month():
     return f"{year}-{month:02d}"
 
 
-def set_filter_conditions(driver):
+def set_filter_conditions(driver, year=None, month=None):
     """
     在标桥收益统计页面设置筛选条件：
     1. 切换到内容 iframe
@@ -81,7 +92,7 @@ def set_filter_conditions(driver):
     3. 设置统计时间（开始/结束）为月报月份
     4. 点击搜索按钮
     """
-    report_month = _get_report_month()
+    report_month = _get_report_month(year, month)
     print(f"正在设置筛选条件，月报月份: {report_month}...")
 
     # 切换到内容 iframe（标桥收益统计页面加载在 iframe 中）
@@ -302,7 +313,7 @@ def _close_top_window(driver):
     return False
 
 
-def export_revenue_data(driver, output_dir):
+def export_revenue_data(driver, output_dir, year=None, month=None):
     """
     完整数据采集流程：
     1. 点击搜索结果的"查看"按钮，打开产品收益弹框
@@ -310,7 +321,7 @@ def export_revenue_data(driver, output_dir):
     3. 逐个点击子产品的"查看"按钮，打开详情弹框
     4. 解析详情数据并保存
     """
-    month_str = _get_report_month_str()
+    month_str = _get_report_month(year, month).replace("-", "")
     os.makedirs(output_dir, exist_ok=True)
     output_file = os.path.join(output_dir, "营收平台标桥收益数据.xlsx")
 
@@ -357,6 +368,7 @@ def export_revenue_data(driver, output_dir):
                 popups = driver.find_elements(By.CSS_SELECTOR, "iframe.mini-iframe, .mini-window iframe")
                 if popups:
                     print(f"    → 详情弹窗已加载")
+                    time.sleep(3)  # 等待数据加载
                     break
                 time.sleep(check_interval)
 

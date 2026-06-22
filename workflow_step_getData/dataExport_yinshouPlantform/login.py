@@ -109,7 +109,14 @@ def navigate_to_yunying_center(driver):
         )
         menu_item.click()
         print("  → 已点击 运营中心视角")
-        time.sleep(2)
+        # 等待侧边栏加载完成
+        time.sleep(3)
+        WebDriverWait(driver, 15).until(
+            EC.presence_of_element_located(
+                (By.CSS_SELECTOR, 'li.level-1 a[data-id]')
+            )
+        )
+        print("  → 侧边栏已加载")
     except TimeoutException:
         print("  → 未找到 运营中心视角 菜单项！")
         raise

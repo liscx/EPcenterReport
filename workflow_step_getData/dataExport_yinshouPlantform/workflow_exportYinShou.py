@@ -5,16 +5,21 @@
 执行顺序：
 1. login.py - 登录营收平台并进入运营中心视角
 2. export_biaoqiao.py - 标桥收益统计筛选与导出
+3. export_qingbiao.py - 清标工具数据导出
 
 使用方法：
-    cd D:\AutoWorkSkill\normalSkills\centerReport\workflow_step_getData\dataExport_yinshouPlantform
+    cd dataExport_yinshouPlantform
     python workflow_exportYinShou.py
+
+    # 导出指定月份数据（如去年同期）
+    python workflow_exportYinShou.py --year 2025 --month 5
 """
 
 import os
 import sys
 import time
 import traceback
+import argparse
 from datetime import datetime
 
 # 添加当前目录到 Python 路径
@@ -34,38 +39,64 @@ def print_step(step_num, total, script_name, status="START"):
     print("-" * 40)
 
 
-def main():
-    """主执行函数"""
+def main(year=None, month=None):
+    """
+    主执行函数
+
+    Args:
+        year: 指定年份，如 2025（去年同期）
+        month: 指定月份，如 5
+    """
     print_banner("营收平台数据导出工作流")
     print(f"执行时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"工作目录: {os.path.dirname(os.path.abspath(__file__))}")
 
     from login import create_driver, login, navigate_to_yunying_center
     from export_biaoqiao import (
         click_biaoqiao_sidebar,
         set_filter_conditions,
         export_revenue_data,
-        _get_report_month_str,
+        _get_report_month,
     )
     from export_qingbiao import (
         export_revenue_data as export_qingbiao_data,
     )
+    from export_qysch import (
+        click_qysch_sidebar,
+        export_all_qysch_data,
+    )
+    from export_ejy import (
+        export_ejy_tongqi,
+    )
 
     # 输出目录：Data/{月份}/source_data
     project_root = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", ".."))
-    month_str = _get_report_month_str()
+    report_month = _get_report_month(year, month)
+    month_str = report_month.replace("-", "")
     output_dir = os.path.join(project_root, "Data", month_str, "source_data")
+    print(f"报告月份: {report_month}")
+    print(f"输出目录: {output_dir}")
 
     # 定义执行步骤
     steps = [
         ("创建浏览器实例", "create_driver"),
         ("登录营收平台", "login"),
         ("导航到运营中心视角", "navigate_to_yunying_center"),
+    ]
+
+    # 往期模式（指定了year）只导出标桥，当前模式导出全部
+    if year is None:
+        steps.extend([
+            ("导出新点电子交易平台当月/同期数据", "export_ejy_tongqi"),
+            ("点击区域市场化侧边栏", "click_qysch_sidebar"),
+            ("导出区域市场化数据(当月/上月/全年/同期)", "export_all_qysch_data"),
+        ])
+
+    steps.extend([
         ("点击标桥收益统计侧边栏", "click_biaoqiao_sidebar"),
         ("设置筛选条件并搜索", "set_filter_conditions"),
         ("采集标桥收益数据并导出Excel", "export_revenue_data"),
         ("采集清标工具数据并导出Excel", "export_qingbiao_data"),
-    ]
+    ])
 
     total_steps = len(steps)
     results = []
@@ -77,10 +108,13 @@ def main():
         "create_driver": create_driver,
         "login": login,
         "navigate_to_yunying_center": navigate_to_yunying_center,
+        "export_ejy_tongqi": lambda d: export_ejy_tongqi(d, output_dir, year),
         "click_biaoqiao_sidebar": click_biaoqiao_sidebar,
-        "set_filter_conditions": set_filter_conditions,
-        "export_revenue_data": lambda d: export_revenue_data(d, output_dir),
-        "export_qingbiao_data": lambda d: export_qingbiao_data(d, output_dir),
+        "set_filter_conditions": lambda d: set_filter_conditions(d, year, month),
+        "export_revenue_data": lambda d: export_revenue_data(d, output_dir, year, month),
+        "export_qingbiao_data": lambda d: export_qingbiao_data(d, output_dir, year, month),
+        "click_qysch_sidebar": click_qysch_sidebar,
+        "export_all_qysch_data": lambda d: export_all_qysch_data(d, output_dir, year),
     }
 
     for idx, (display_name, func_name) in enumerate(steps, 1):
@@ -136,8 +170,13 @@ def main():
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='营收平台数据导出工作流')
+    parser.add_argument('--year', type=int, help='指定年份，如 2025')
+    parser.add_argument('--month', type=int, help='指定月份，如 5')
+    args = parser.parse_args()
+
     try:
-        exit_code = main()
+        exit_code = main(year=args.year, month=args.month)
         print(f"\n{'='*60}")
         print(f"  工作流执行完成 (退出码: {exit_code})")
         print(f"{'='*60}\n")
