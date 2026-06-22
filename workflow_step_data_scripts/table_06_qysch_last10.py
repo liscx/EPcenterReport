@@ -13,6 +13,16 @@ import os
 import pandas as pd
 from utils import save_res_df, get_month, get_year, exc_logger, BASE_DIR
 
+
+def check_revenue_anomaly_simple(table_name, name, val, val_type="收益"):
+    """简化版异常检测，用于非分公司维度的数据。"""
+    if pd.isna(val):
+        exc_logger.add(table_name, f"[需复核] 「{name}」{val_type}为空，按0处理")
+        return 0
+    if val < 0:
+        exc_logger.add(table_name, f"[需人工复核] 「{name}」{val_type}为负数: {val}")
+    return val
+
 # ── 路径配置 ──────────────────────────────────────────────────────────
 _year = get_year()
 _month = get_month()
@@ -56,16 +66,23 @@ def process():
     # 3. 合并
     merged = monthly_agg.merge(lastmonth_agg, on='平台名称', how='inner')
 
-    # 4. 计算环比下降（负值表示下降）
+    # 4. 异常检测：收益为空或负数
+    for idx, row in merged.iterrows():
+        name = row['平台名称']
+        this_val = row['本月收益']
+        checked_val = check_revenue_anomaly_simple('table06', name, this_val, "本月收益")
+        merged.at[idx, '本月收益'] = checked_val
+
+    # 5. 计算环比下降（负值表示下降）
     merged['环比变化'] = merged.apply(
         lambda r: safe_div(r['本月收益'], r['上月收益']) - 1, axis=1
     )
 
-    # 5. 筛选下降的平台，按跌幅排序，取TOP10
+    # 6. 筛选下降的平台，按跌幅排序，取TOP10
     declined = merged[merged['环比变化'] < 0].copy()
     declined = declined.sort_values('环比变化', ascending=True).head(10).reset_index(drop=True)
 
-    # 6. 构建输出
+    # 7. 构建输出
     output = pd.DataFrame({
         '序': range(1, len(declined) + 1),
         '平台名称': declined['平台名称'],
@@ -75,7 +92,7 @@ def process():
         '原因分析': '',
     })
 
-    # 7. 保存
+    # 8. 保存
     save_res_df(output, '收益跌幅TOP10_6')
 
     os.makedirs(RES_DATA_DIR, exist_ok=True)

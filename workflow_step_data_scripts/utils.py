@@ -69,14 +69,74 @@ def save_to_sheet(df, sheet_name):
     pass
 
 def calculate_huanbi(this_val, last_val):
-    if pd.isna(this_val) or pd.isna(last_val) or last_val == 0:
+    """
+    计算环比变化。
+
+    规则：
+    - 上月收益为0，本月大于0 → 返回 "100%"
+    - 上月收益为0，本月也为0 → 返回 "/"
+    - 上月或本月为空 → 返回 ""
+    - 正常计算：(本月-上月)/上月
+    """
+    # 处理空值
+    if pd.isna(this_val) or pd.isna(last_val):
         return ""
+
+    this_val = float(this_val)
+    last_val = float(last_val)
+
+    # 上月为0的特殊处理
+    if last_val == 0:
+        if this_val > 0:
+            return "100%"
+        else:  # 本月也为0或负数
+            return "/"
+
     try:
-        rate = (float(this_val) - float(last_val)) / float(last_val)
+        rate = (this_val - last_val) / last_val
         prefix = "▲" if rate > 0 else "▼" if rate < 0 else ""
         return f"{prefix}{abs(rate):.2%}"
     except:
         return ""
+
+
+def check_revenue_anomaly(table_name, branch, this_val, last_val=None, template_branches=None):
+    """
+    检查收益数据异常并记录到 exc_logger。
+
+    异常规则：
+    1. 数据源中找不到模板分公司 → 本月收益填0，并标记"未匹配到数据"
+    2. 收益为空 → 按0处理，并标记需复核
+    3. 收益为负数 → 保留数据，但标记需人工复核
+    4. 上月收益为0，本月大于0 → 环比显示"100%"
+    5. 上月收益为0，本月也为0 → 环比显示"/"
+
+    返回处理后的 this_val（可能被修正为0）
+    """
+    original_val = this_val
+
+    # 规则1: 数据源中找不到模板分公司
+    if template_branches is not None and branch not in template_branches:
+        exc_logger.add(table_name, f"[未匹配到数据] 分公司「{branch}」在模板中未找到，本月收益填0")
+        return 0
+
+    # 规则2: 收益为空
+    if pd.isna(this_val):
+        exc_logger.add(table_name, f"[需复核] 分公司「{branch}」收益为空，按0处理")
+        return 0
+
+    # 规则3: 收益为负数
+    if this_val < 0:
+        exc_logger.add(table_name, f"[需人工复核] 分公司「{branch}」收益为负数: {this_val}")
+
+    # 规则4和5: 上月收益为0的情况（在 calculate_huanbi 中处理）
+    if last_val is not None and not pd.isna(last_val) and last_val == 0:
+        if this_val > 0:
+            exc_logger.add(table_name, f"[环比异常] 分公司「{branch}」上月收益为0，本月收益为{this_val}，环比显示100%")
+        elif this_val == 0:
+            exc_logger.add(table_name, f"[环比异常] 分公司「{branch}」上月和本月收益均为0，环比显示/")
+
+    return this_val
 
 def load_main_data():
     """

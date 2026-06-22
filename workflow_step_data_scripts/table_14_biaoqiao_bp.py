@@ -10,7 +10,7 @@ table_14 — 标桥BP统计（表格十四）
 """
 import os
 import pandas as pd
-from utils import save_res_df, calculate_huanbi, get_month, get_year, exc_logger, BASE_DIR
+from utils import save_res_df, calculate_huanbi, check_revenue_anomaly, get_month, get_year, exc_logger, BASE_DIR
 
 # ── 路径配置 ──────────────────────────────────────────────────────────
 _year = get_year()
@@ -169,11 +169,15 @@ def process():
     prior_revenue, prior_full_year = load_prior_data()
 
     # 6. 构建结果
+    template_branches = set(branch for branch, _ in bp_data)
     rows = []
     seq = 1
     for branch, bp_total in bp_data:
         this_revenue = mapped_revenue.get(branch, float('nan'))
         last_revenue = prior_revenue.get(branch, float('nan'))
+
+        # 异常检测：收益为空或负数，模板分公司未找到
+        this_revenue = check_revenue_anomaly('table14', branch, this_revenue, last_revenue)
 
         # 环比变化
         huanbi = calculate_huanbi(this_revenue, last_revenue)

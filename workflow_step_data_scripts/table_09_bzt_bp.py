@@ -10,7 +10,7 @@ table_09 — 标证通-分公司收益（表格九）
 """
 import os
 import pandas as pd
-from utils import save_res_df, calculate_huanbi, get_month, get_year, exc_logger, BASE_DIR
+from utils import save_res_df, calculate_huanbi, check_revenue_anomaly, get_month, get_year, exc_logger, BASE_DIR
 
 # ── 路径配置 ──────────────────────────────────────────────────────────
 _year = get_year()
@@ -98,16 +98,24 @@ def process():
         return
 
     # ── 构建结果 ──
+    template_branches = set(bp_dict.keys())
     res_rows = []
     for _, row in df.iterrows():
         short_name = str(row['分公司']).strip()
         full_name = mapping.get(short_name, short_name)
+
+        # 检测分公司名称映射失败
+        if short_name not in mapping:
+            exc_logger.add('table09', f"[分公司名称未匹配] 源表名称「{short_name}」在映射表中未找到，需人工确认")
 
         this_val = parse_num(row[rev_col])
         yoy_str = str(row.get(yoy_col, '/')).strip()
         ytd_val = parse_num(row.get(ytd_col, float('nan')))
         prev_val = prior.get(full_name, float('nan'))
         bp_val = bp_dict.get(full_name, float('nan'))
+
+        # 异常检测：收益为空或负数，模板分公司未找到
+        this_val = check_revenue_anomaly('table09', full_name, this_val, prev_val, template_branches)
 
         bp_rate = '/' if pd.isna(bp_val) or pd.isna(ytd_val) or bp_val == 0 else f'{ytd_val / bp_val:.2%}'
 

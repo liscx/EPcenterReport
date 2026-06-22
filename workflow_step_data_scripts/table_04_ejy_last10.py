@@ -10,6 +10,17 @@ import os
 import pandas as pd
 from utils import save_res_df, get_month, get_year, exc_logger, BASE_DIR
 
+
+def check_revenue_anomaly_simple(table_name, name, val, val_type="收益"):
+    """简化版异常检测，用于非分公司维度的数据。"""
+    import pandas as pd
+    if pd.isna(val):
+        exc_logger.add(table_name, f"[需复核] 「{name}」{val_type}为空，按0处理")
+        return 0
+    if val < 0:
+        exc_logger.add(table_name, f"[需人工复核] 「{name}」{val_type}为负数: {val}")
+    return val
+
 # ── 路径配置 ──────────────────────────────────────────────────────────
 _year = get_year()
 _month = get_month()
@@ -52,6 +63,9 @@ def process():
         this_val = parse_num(row.get('5月收益', float('nan')))
         pct_str = str(row.get('环比上月收益', '')).strip()
         pct_val = parse_num(pct_str)
+
+        # 异常检测：收益为空或负数
+        this_val = check_revenue_anomaly_simple('table04', name, this_val)
 
         if pd.isna(this_val) or pd.isna(pct_val) or pct_val >= 0:
             continue  # 跳过无数据或非下降的

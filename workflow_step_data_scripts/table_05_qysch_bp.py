@@ -15,7 +15,7 @@ table_05 — 区域市场化BP（表格五）
 """
 import os
 import pandas as pd
-from utils import save_res_df, get_month, get_year, exc_logger, BASE_DIR
+from utils import save_res_df, get_month, get_year, exc_logger, check_revenue_anomaly, BASE_DIR
 
 # ── 路径配置 ──────────────────────────────────────────────────────────
 _year = get_year()
@@ -62,8 +62,9 @@ def format_val(val):
 
 # ── 主处理逻辑 ────────────────────────────────────────────────────────
 def process():
-    # 1. 读取BP数据
+    # 1. 读取BP数据（模板分公司列表）
     bp_df = pd.read_excel(BP_FILE)
+    template_branches = set(bp_df['分公司'].tolist())
     # 列名：分公司, BP总额(元）
 
     # 2. 读取分公司映射表
@@ -71,8 +72,15 @@ def process():
     # 列名：源表分公司名称, 月报输出分公司名称
     mapping = dict(zip(map_df['源表分公司名称'], map_df['月报输出分公司名称']))
 
-    # 3. 读取当月数据，映射分公司并汇总
+    # 3. 读取当月数据，检测映射异常并汇总
     monthly_df = pd.read_excel(MONTHLY_FILE)
+    # 检测分公司名称映射失败
+    for _, row in monthly_df.iterrows():
+        src_name = str(row['分公司']).strip()
+        mapped_name = mapping.get(src_name)
+        if mapped_name is None:
+            exc_logger.add('table05', f"[分公司名称未匹配] 源表名称「{src_name}」在映射表中未找到，需人工确认")
+
     monthly_df['分公司_映射'] = monthly_df['分公司'].map(mapping)
     monthly_agg = monthly_df.groupby('分公司_映射')['实得收益'].sum().reset_index()
     monthly_agg.columns = ['分公司', '本月收益（元）']
@@ -100,13 +108,25 @@ def process():
         exc_logger.add('table05', f'上期extract文件不存在: {PRIOR_EXTRACT}')
         result['上月收益（元）'] = float('nan')
 
-    # 7. 计算环比、同比、BP完成比例
-    result['环比变化'] = result.apply(
-        lambda r: format_pct(safe_div(r['本月收益（元）'], r.get('上月收益（元）', float('nan'))) - 1)
-            if not pd.isna(r.get('上月收益（元）'))
-            else format_pct(0 if not pd.isna(r['本月收益（元）']) and r['本月收益（元）'] == 0 else float('nan')),
-        axis=1
-    )
+    # 7. 异常检测：收益为空或负数
+    for idx, row in result.iterrows():
+        branch = row['分公司']
+        this_val = row['本月收益（元）']
+        last_val = row['上月收益（元）']
+
+        # 检测收益异常
+        checked_val = check_revenue_anomaly('table05', branch, this_val, last_val)
+        result.at[idx, '本月收益（元）'] = checked_val
+
+    # 8. 计算环比、同比、BP完成比例（使用新的环比规则）
+    def calc_huanbi_new(row):
+        this_val = row['本月收益（元）']
+        last_val = row.get('上月收益（元）', float('nan'))
+        # 使用 utils 中的 calculate_huanbi 函数（已更新规则）
+        from utils import calculate_huanbi
+        return calculate_huanbi(this_val, last_val) if not pd.isna(last_val) else '/'
+
+    result['环比变化'] = result.apply(calc_huanbi_new, axis=1)
     # 同比变化：需要去年同期数据，暂留空
     result['同比变化'] = None
     result['BP完成比例'] = result.apply(
@@ -114,7 +134,7 @@ def process():
         axis=1
     )
 
-    # 8. 构建最终输出（保持BP文件中的分公司顺序）
+    # 9. 构建最终输出（保持BP文件中的分公司顺序）
     output = pd.DataFrame({
         '序': range(1, len(result) + 1),
         '分公司名称': result['分公司'],
@@ -127,7 +147,7 @@ def process():
         'BP完成比例': result['BP完成比例'],
     })
 
-    # 9. 保存结果
+    # 10. 保存结果
     save_res_df(output, '区域市场化BP_5')
 
     # 同时保存到独立 extract 文件（供下月作为上期数据）

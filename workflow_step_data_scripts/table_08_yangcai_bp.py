@@ -8,7 +8,7 @@ table_08 — 阳光优采-分公司BP（表格八）
 """
 import os
 import pandas as pd
-from utils import save_res_df, get_month, get_year, exc_logger, BASE_DIR
+from utils import save_res_df, get_month, get_year, exc_logger, check_revenue_anomaly, BASE_DIR
 
 # ── 路径配置 ──────────────────────────────────────────────────────────
 _year = get_year()
@@ -34,6 +34,13 @@ def process():
     bp_df = pd.read_excel(BP_FILE)
     bp_df['分公司'] = bp_df['分公司'].astype(str).str.strip()
     bp_dict = dict(zip(bp_df['分公司'], bp_df['BP总额（元）']))
+    template_branches = set(bp_df['分公司'].tolist())
+
+    # ── 检测分公司是否在BP表中 ──
+    for _, row in df.iterrows():
+        branch = row['分公司']
+        if branch not in template_branches:
+            exc_logger.add('table08', f"[未匹配到数据] 分公司「{branch}」在BP表中未找到")
 
     # ── 拼接 BP总额 ──
     df['全年收益（元）'] = '/'

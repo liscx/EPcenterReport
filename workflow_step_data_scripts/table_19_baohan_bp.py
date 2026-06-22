@@ -10,7 +10,7 @@ table_19 — 投标保函-分公司收益（表格十九）
 """
 import os
 import pandas as pd
-from utils import save_res_df, calculate_huanbi, get_month, get_year, exc_logger, BASE_DIR
+from utils import save_res_df, calculate_huanbi, check_revenue_anomaly, get_month, get_year, exc_logger, BASE_DIR
 
 # ── 路径配置 ──────────────────────────────────────────────────────────
 _year = get_year()
@@ -114,6 +114,7 @@ def process():
     yoy_rev = df25[df25['月'] == this_month].groupby('分公司')['销售毛利(元)'].sum()
 
     # ── 构建结果 ──
+    template_branches = set(bp_dict.keys())
     all_branches = sorted(set(this_rev.index) | set(last_rev.index) | set(ytd_rev.index))
     res_rows = []
     for branch in all_branches:
@@ -123,6 +124,10 @@ def process():
         yoy_val = yoy_rev.get(branch, float('nan'))
 
         bp_val = bp_dict.get(branch, float('nan'))
+
+        # 异常检测：收益为空或负数，模板分公司未找到
+        this_val = check_revenue_anomaly('table19', branch, this_val, last_val, template_branches)
+
         bp_rate = '/' if pd.isna(bp_val) or bp_val == 0 else f'{ytd_val / bp_val:.2%}'
 
         res_rows.append({

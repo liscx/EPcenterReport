@@ -1,6 +1,6 @@
 import pandas as pd
-from utils import (load_main_data, normalize_branch, save_res_df, calculate_huanbi, 
-                   get_month, COL_REVENUE, COL_MONTH, COL_BRANCH, exc_logger)
+from utils import (load_main_data, normalize_branch, save_res_df, calculate_huanbi,
+                   check_revenue_anomaly, get_month, COL_REVENUE, COL_MONTH, COL_BRANCH, exc_logger)
 
 def process():
     month = get_month()
@@ -20,7 +20,10 @@ def process():
         this_val = stats.loc[branch, month] if month in stats.columns else 0
         last_val = stats.loc[branch, month - 1] if month - 1 in stats.columns else 0
         ytd_val = stats.loc[branch, :month].sum()
-        
+
+        # 异常检测：收益为空或负数
+        this_val = check_revenue_anomaly('table12', branch, this_val, last_val)
+
         res_rows.append({
             '分公司': branch,
             '本月收益（元）': this_val,
