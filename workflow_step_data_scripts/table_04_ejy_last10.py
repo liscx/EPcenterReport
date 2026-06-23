@@ -28,6 +28,7 @@ DATA_DIR = os.path.join(BASE_DIR, 'Data', f'{_year}{_month:02d}')
 PERSIST_DIR = os.path.join(BASE_DIR, 'persistence_data')
 
 EJY_FILE = os.path.join(DATA_DIR, 'process_data', 'ejy_data.xlsx')
+EJY_LAST_MONTH_FILE = os.path.join(DATA_DIR, 'source_data', '新点电子交易平台上月.xlsx')
 
 RES_DATA_DIR = os.path.join(DATA_DIR, 'res_data')
 OUTPUT_EXTRACT = os.path.join(RES_DATA_DIR, f'extract_data{_month}月报.xlsx')
@@ -53,9 +54,27 @@ def format_pct(val):
     return f'{prefix}{abs(val):.2f}%'
 
 
+def load_last_month_data(last_month_file):
+    """读取上月数据，返回 dict: 平台名称 → 上月收益。"""
+    if not os.path.exists(last_month_file):
+        exc_logger.add('table04', f'上月数据文件不存在: {last_month_file}')
+        return {}
+    try:
+        df = pd.read_excel(last_month_file)
+        # 按平台名称汇总收益
+        result = df.groupby('平台名称（财经系统）')['收益'].apply(lambda x: x.apply(parse_num).sum()).to_dict()
+        return result
+    except Exception as e:
+        exc_logger.add('table04', f'读取上月数据失败: {e}')
+        return {}
+
+
 def process():
     # ── 读取「专区详情」sheet ──
     df = pd.read_excel(EJY_FILE, sheet_name=2)
+
+    # ── 读取上月数据 ──
+    last_month_data = load_last_month_data(EJY_LAST_MONTH_FILE)
 
     rows = []
     for _, row in df.iterrows():
@@ -70,11 +89,12 @@ def process():
         if pd.isna(this_val) or pd.isna(pct_val) or pct_val >= 0:
             continue  # 跳过无数据或非下降的
 
-        # 反推上月收益：本月 = 上月 * (1 + pct/100) → 上月 = 本月 / (1 + pct/100)
-        denominator = 1 + pct_val / 100
-        if denominator == 0:
-            continue
-        prev_val = this_val / denominator
+        # 从上月数据获取上月收益
+        prev_val = last_month_data.get(name, float('nan'))
+
+        if pd.isna(prev_val):
+            continue  # 上月数据中没有，跳过
+
         decrease = prev_val - this_val
 
         rows.append({
