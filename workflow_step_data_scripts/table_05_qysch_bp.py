@@ -29,6 +29,7 @@ BP_FILE = os.path.join(PERSIST_DIR, '区域市场化_bp.xlsx')
 MAP_FILE = os.path.join(PERSIST_DIR, '分公司映射表.xlsx')
 MONTHLY_FILE = os.path.join(DATA_DIR, 'source_data', '区域市场化当月.xlsx')
 FULLYEAR_FILE = os.path.join(DATA_DIR, 'source_data', '区域市场化全年.xlsx')
+TONGQI_FILE = os.path.join(DATA_DIR, 'source_data', '区域市场化同期.xlsx')
 
 _prior_month = _month - 1 if _month > 1 else 12
 PRIOR_EXTRACT = os.path.join(DATA_DIR, 'process_data', f'extract_data{_prior_month}月报.xlsx')
@@ -91,9 +92,20 @@ def process():
     fullyear_agg = fullyear_df.groupby('分公司_映射')['实得收益'].sum().reset_index()
     fullyear_agg.columns = ['分公司', '全年收益（元）']
 
+    # 4.5 读取同期数据，映射分公司并汇总
+    tongqi_agg = pd.DataFrame(columns=['分公司', '同期收益（元）'])
+    if os.path.exists(TONGQI_FILE):
+        tongqi_df = pd.read_excel(TONGQI_FILE)
+        tongqi_df['分公司_映射'] = tongqi_df['分公司'].map(mapping)
+        tongqi_agg = tongqi_df.groupby('分公司_映射')['收益'].sum().reset_index()
+        tongqi_agg.columns = ['分公司', '同期收益（元）']
+    else:
+        exc_logger.add('table05', f'同期数据文件不存在: {TONGQI_FILE}')
+
     # 5. 合并数据
     result = bp_df.merge(monthly_agg, on='分公司', how='left')
     result = result.merge(fullyear_agg, on='分公司', how='left')
+    result = result.merge(tongqi_agg, on='分公司', how='left')
 
     # 6. 读取上月收益（来自上期extract的表格5）
     if os.path.exists(PRIOR_EXTRACT):
@@ -127,8 +139,14 @@ def process():
         return calculate_huanbi(this_val, last_val) if not pd.isna(last_val) else '/'
 
     result['环比变化'] = result.apply(calc_huanbi_new, axis=1)
-    # 同比变化：需要去年同期数据，暂留空
-    result['同比变化'] = None
+    # 同比变化：使用同期数据
+    def calc_tongbi(row):
+        this_val = row['本月收益（元）']
+        tongqi_val = row.get('同期收益（元）', float('nan'))
+        from utils import calculate_huanbi
+        return calculate_huanbi(this_val, tongqi_val) if not pd.isna(tongqi_val) else '/'
+
+    result['同比变化'] = result.apply(calc_tongbi, axis=1)
     result['BP完成比例'] = result.apply(
         lambda r: format_pct(safe_div(r['全年收益（元）'], r['BP总额(元）'])),
         axis=1
