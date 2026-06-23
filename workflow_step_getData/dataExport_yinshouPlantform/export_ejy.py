@@ -236,7 +236,7 @@ def export_ejy_data(driver, output_dir, year=None, month=None, output_filename=N
 
 def export_ejy_tongqi(driver, output_dir, year=None):
     """
-    导出新点电子交易平台数据：当月、同期。
+    导出新点电子交易平台数据：当月、上月、同期。
 
     Args:
         driver: WebDriver 实例
@@ -255,24 +255,35 @@ def export_ejy_tongqi(driver, output_dir, year=None):
         report_month = 12
         year -= 1
 
+    # 上月
+    prev_month = report_month - 1
+    if prev_month == 0:
+        prev_month = 12
+
     # 同期：去年的月报月
     last_year = year - 1
 
     print(f"\n{'='*60}")
     print(f"  新点电子交易平台数据导出")
     print(f"  当月: {year}年{report_month}月")
+    print(f"  上月: {year}年{prev_month}月")
     print(f"  同期: {last_year}年{report_month}月")
     print(f"{'='*60}")
 
     results = []
 
     # 1. 导出当月数据
-    print(f"\n[1/2] 导出当月数据 ({year}年{report_month}月)...")
+    print(f"\n[1/3] 导出当月数据 ({year}年{report_month}月)...")
     result = export_ejy_data(driver, output_dir, year, report_month, "新点电子交易平台当月.xlsx")
     results.append(("当月", result))
 
-    # 2. 导出同期数据
-    print(f"\n[2/2] 导出同期数据 ({last_year}年{report_month}月)...")
+    # 2. 导出上月数据
+    print(f"\n[2/3] 导出上月数据 ({year}年{prev_month}月)...")
+    result = export_ejy_data(driver, output_dir, year, prev_month, "新点电子交易平台上月.xlsx")
+    results.append(("上月", result))
+
+    # 3. 导出同期数据
+    print(f"\n[3/3] 导出同期数据 ({last_year}年{report_month}月)...")
     result = export_ejy_data(driver, output_dir, last_year, report_month, "新点电子交易平台同期.xlsx")
     results.append(("同期", result))
 
