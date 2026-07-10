@@ -238,6 +238,61 @@ def fill_table_19(table, df):
         add_data_row(table, row_data, num_cols)
 
 
+def fill_table_7(table, df, color_cols=None):
+    """
+    表格7（阳光优采-核心指标）特殊处理：
+    docx 模型有表头行（合并2列）和空行，需要填充到空行中。
+    """
+    num_cols = len(table.columns)
+    rows = table.rows
+
+    # 从第2行开始填充（跳过表头行）
+    start_row = 1
+    for idx, (_, row) in enumerate(df.iterrows()):
+        row_data = [row.iloc[i] if i < len(row) else '/' for i in range(num_cols)]
+
+        # 根据值动态生成颜色映射
+        color_map = {}
+        if color_cols:
+            for col_idx in color_cols:
+                if col_idx < len(row_data):
+                    val_str = str(row_data[col_idx])
+                    if val_str.startswith('▲'):
+                        color_map[col_idx] = 'FF0000'  # 红色
+                    elif val_str.startswith('▼'):
+                        color_map[col_idx] = '00B050'  # 绿色
+
+        # 如果当前行存在，填充到该行
+        if start_row + idx < len(rows):
+            current_row = rows[start_row + idx]
+            for col_idx, value in enumerate(row_data):
+                if col_idx < len(current_row.cells):
+                    cell = current_row.cells[col_idx]
+                    # 清空单元格内容
+                    for p in cell.paragraphs:
+                        for r in p.runs:
+                            r.text = ''
+                    # 设置新值
+                    if cell.paragraphs:
+                        p = cell.paragraphs[0]
+                        if p.runs:
+                            run = p.runs[0]
+                        else:
+                            run = p.add_run()
+                        run.text = str(value)
+                        # 设置颜色
+                        if color_map and col_idx in color_map:
+                            from docx.oxml.ns import qn
+                            from docx.oxml import OxmlElement
+                            rpr = run._r.get_or_add_rPr()
+                            color_el = OxmlElement('w:color')
+                            color_el.set(qn('w:val'), color_map[col_idx])
+                            rpr.append(color_el)
+        else:
+            # 如果当前行不存在，添加新行
+            add_data_row(table, row_data, num_cols, color_map=color_map)
+
+
 def process():
     print(f'模板文件: {MODEL_FILE}')
     print(f'数据文件: {EXTRACT_FILE}')
@@ -287,6 +342,12 @@ def process():
         df = align_columns(df, table)
         print(f'{sheet_name} → docx 表格 #{table_idx}（{len(df)} 行数据, {len(table.columns)} 列）')
 
+        # 自动检测环比/同比列索引，用于标色
+        color_cols = []
+        for i, col in enumerate(df.columns):
+            if any(k in str(col) for k in ['环比', '同比']):
+                color_cols.append(i)
+
         # 表格8 和 表格19 有合并单元格，需要特殊处理
         if table_num == 8:
             fill_table_8(table, df)
@@ -294,10 +355,12 @@ def process():
             fill_table_19(table, df)
         elif table_num == 2:
             # 表格2：同一分公司的运营/项目费行，合并全年收益、BP完成比例
-            # 环比/同比：上涨标红，下降标绿
-            fill_table_from_excel(table, df, merge_cols=[7, 9], key_col=1, color_cols=[5, 6])
+            fill_table_from_excel(table, df, merge_cols=[7, 9], key_col=1, color_cols=color_cols)
+        elif table_num == 7:
+            # 表格7：表头合并2列，需要填充到空行中
+            fill_table_7(table, df, color_cols=color_cols)
         else:
-            fill_table_from_excel(table, df)
+            fill_table_from_excel(table, df, color_cols=color_cols if color_cols else None)
 
     # 替换段落占位符（{{ejy1}} 等）
     fill_paragraph_placeholders(doc, PARAGRAPH_JSON)
