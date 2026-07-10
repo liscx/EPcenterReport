@@ -4,7 +4,7 @@ paragraphs_data_computed — 计算段落数据，追加到 report_paragraphs.js
 
 计算内容：
   - 区域市场化：从 source_data/区域市场化*.xlsx 和 persistence_data/区域市场化_bp.xlsx
-  - 标桥：从 source_data/营收平台标桥收益数据.xlsx 和 persistence_data/标桥_bp.xlsx
+  - 标桥：从 source_data/标桥收益明细表.xlsx 和 persistence_data/标桥_bp.xlsx
 
 输出：追加到 Data/{year}{month}/res_data/report_paragraphs.json
 """
@@ -23,13 +23,25 @@ SOURCE_DIR = os.path.join(BASE_DIR, 'Data', f'{_year}{_month:02d}', 'source_data
 PERSIST_DIR = os.path.join(BASE_DIR, 'persistence_data')
 OUTPUT_JSON = os.path.join(BASE_DIR, 'Data', f'{_year}{_month:02d}', 'res_data', 'report_paragraphs.json')
 
-# 同期数据（去年同期）
+# 标桥数据文件
+BIAOQIAO_FILE = os.path.join(SOURCE_DIR, '标桥收益明细表.xlsx')
+
+# 同期数据（去年同期，区域市场化用）
 _prior_year = _year - 1
 TONGQI_DIR = os.path.join(BASE_DIR, 'Data', f'{_prior_year}{_month:02d}', 'source_data')
 
 # 上期 extract（用于读取标桥上月收益）
 _prior_month = _month - 1 if _month > 1 else 12
 PRIOR_EXTRACT = os.path.join(BASE_DIR, 'Data', f'{_year}{_month:02d}', 'process_data', f'extract_data{_prior_month}月报.xlsx')
+
+# 收益sheet定义：(sheet名, 收益列名)
+REVENUE_SHEETS = [
+    ('投标', '收益金额（元）'),
+    ('排版', '收益金额（元）'),
+    ('AI编标', '收益金额（元）'),
+    ('标书检查', '收益'),
+    ('素材市场', '收益金额（元）'),
+]
 
 
 def safe_pct(this_val, last_val):
@@ -122,20 +134,24 @@ def compute_qysch():
 
 # ── 标桥 ──────────────────────────────────────────────────────────
 def load_biaoqiao_monthly_revenue():
-    """从营收平台标桥收益数据.xlsx 所有 sheet 累加收益金额，返回本月总收益。"""
-    file = os.path.join(SOURCE_DIR, '营收平台标桥收益数据.xlsx')
-    if not os.path.exists(file):
-        print(f'标桥收益数据文件不存在: {file}')
+    """从标桥收益明细表.xlsx 的收益sheet筛选指定月份，返回本月总收益。含素材市场。"""
+    if not os.path.exists(BIAOQIAO_FILE):
+        print(f'标桥收益数据文件不存在: {BIAOQIAO_FILE}')
         return 0
 
     total = 0
-    xls = pd.ExcelFile(file)
-    for sheet_name in xls.sheet_names:
-        df = pd.read_excel(xls, sheet_name=sheet_name)
-        if '收益金额（元）' in df.columns:
-            total += df['收益金额（元）'].sum()
-        elif '收益（元）' in df.columns:
-            total += df['收益（元）'].sum()
+    try:
+        xls = pd.ExcelFile(BIAOQIAO_FILE, engine='calamine')
+        for sheet_name, revenue_col in REVENUE_SHEETS:
+            if sheet_name not in xls.sheet_names:
+                continue
+            df = pd.read_excel(xls, sheet_name=sheet_name, engine='calamine')
+            if revenue_col not in df.columns or '月份' not in df.columns:
+                continue
+            df_month = df[df['月份'] == _month]
+            total += df_month[revenue_col].apply(lambda x: float(x) if isinstance(x, (int, float)) else 0).sum()
+    except Exception as e:
+        print(f'读取标桥收益数据失败: {e}')
     return total
 
 
@@ -156,21 +172,20 @@ def load_biaoqiao_prior_revenue():
 
 
 def load_biaoqiao_tongqi_revenue():
-    """从去年同期的营收平台标桥收益数据.xlsx 所有 sheet 累加收益金额，返回同期总收益。"""
-    file = os.path.join(TONGQI_DIR, '营收平台标桥收益数据.xlsx')
-    if not os.path.exists(file):
-        print(f'标桥同期收益数据文件不存在: {file}')
+    """从标桥收益明细表.xlsx 的「25年」sheet 筛选指定月份，返回同期总收益。"""
+    if not os.path.exists(BIAOQIAO_FILE):
+        print(f'标桥收益数据文件不存在: {BIAOQIAO_FILE}')
         return 0
 
-    total = 0
-    xls = pd.ExcelFile(file)
-    for sheet_name in xls.sheet_names:
-        df = pd.read_excel(xls, sheet_name=sheet_name)
-        if '收益金额（元）' in df.columns:
-            total += df['收益金额（元）'].sum()
-        elif '收益（元）' in df.columns:
-            total += df['收益（元）'].sum()
-    return total
+    try:
+        df = pd.read_excel(BIAOQIAO_FILE, sheet_name='25年', engine='calamine')
+        if '收益金额（元）' not in df.columns or '月份' not in df.columns:
+            return 0
+        df_month = df[df['月份'] == _month]
+        return df_month['收益金额（元）'].apply(lambda x: float(x) if isinstance(x, (int, float)) else 0).sum()
+    except Exception as e:
+        print(f'读取标桥同期数据失败: {e}')
+        return 0
 
 
 def compute_biaoqiao():

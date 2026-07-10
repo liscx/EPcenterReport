@@ -3,11 +3,10 @@
 table_14 — 标桥BP统计（表格十四）
 
 数据来源：
-  - 分公司和BP总额：persistence_data/标桥_bp.xlsx
-  - 本月收益：source_data/营收平台标桥收益数据.xlsx 中所有sheet的收益金额累加
-  - 上月收益：上期 extract 文件的「表14」sheet
-  - 同期收益：去年同期的 source_data/营收平台标桥收益数据.xlsx 中所有sheet的收益金额累加
-  - 分公司映射：persistence_data/分公司映射表.xlsx
+  - 本月收益：source_data/标桥收益明细表.xlsx 中「投标/排版/AI编标/标书检查」4个sheet
+  - 上月收益：上期 extract 文件的「表格14」sheet
+  - 同期收益：同文件「25年」sheet 中去年同期月份的数据
+  - 分公司和BP总额：persistence_data/标桥_bp.xlsx（暂未切换）
 """
 import os
 import pandas as pd
@@ -20,18 +19,21 @@ _month = get_month()  # 已经是报告月（当月-1），6月返回5
 DATA_DIR = os.path.join(BASE_DIR, 'Data', f'{_year}{_month:02d}')
 PERSIST_DIR = os.path.join(BASE_DIR, 'persistence_data')
 
-BIAOQIAO_FILE = os.path.join(DATA_DIR, 'source_data', '营收平台标桥收益数据.xlsx')
+BIAOQIAO_FILE = os.path.join(DATA_DIR, 'source_data', '标桥收益明细表.xlsx')
 BP_FILE = os.path.join(PERSIST_DIR, '标桥_bp.xlsx')
-MAPPING_FILE = os.path.join(PERSIST_DIR, '分公司映射表.xlsx')
-
-# 同期数据（去年同期）
-_prior_year = _year - 1
-TONGQI_FILE = os.path.join(BASE_DIR, 'Data', f'{_prior_year}{_month:02d}', 'source_data', '营收平台标桥收益数据.xlsx')
 
 # 上期 extract（报告月目录下的上月报告）
 _prior_month = _month - 1 if _month > 1 else 12
 PRIOR_EXTRACT = os.path.join(BASE_DIR, 'Data', f'{_year}{_month:02d}', 'process_data', f'extract_data{_prior_month}月报.xlsx')
 RES_DATA_DIR = os.path.join(DATA_DIR, 'res_data')
+
+# 收益sheet定义：(sheet名, 收益列名)
+REVENUE_SHEETS = [
+    ('投标', '收益金额（元）'),
+    ('排版', '收益金额（元）'),
+    ('AI编标', '收益金额（元）'),
+    ('标书检查', '收益'),
+]
 
 
 def parse_num(val):
@@ -47,24 +49,10 @@ def parse_num(val):
         return float('nan')
 
 
-def load_branch_mapping():
-    """加载分公司映射表，返回 {源表分公司名称: 月报输出分公司名称} 的字典。"""
-    if not os.path.exists(MAPPING_FILE):
-        exc_logger.add('table14', f'分公司映射表不存在: {MAPPING_FILE}')
-        return {}
-
-    try:
-        df = pd.read_excel(MAPPING_FILE)
-        # 假设映射表有两列：源表分公司名称 和 月报输出分公司名称
-        return dict(zip(df['源表分公司名称'].astype(str).str.strip(), df['月报输出分公司名称'].astype(str).str.strip()))
-    except Exception as e:
-        exc_logger.add('table14', f'读取分公司映射表失败: {e}')
-        return {}
-
-
-def load_biaoqiao_revenue_by_branch(file_path):
+def load_biaoqiao_revenue_by_branch(file_path, month):
     """
-    从标桥收益数据文件中读取所有sheet，按分公司累加收益。
+    从标桥收益明细表.xlsx 中读取收益sheet（投标/排版/AI编标/标书检查），
+    筛选指定月份，按分公司累加收益。
     返回 {分公司: 收益金额} 的字典。
     """
     if not os.path.exists(file_path):
@@ -73,21 +61,21 @@ def load_biaoqiao_revenue_by_branch(file_path):
 
     revenue_by_branch = {}
     try:
-        xls = pd.ExcelFile(file_path)
-        for sheet_name in xls.sheet_names:
-            df = pd.read_excel(xls, sheet_name=sheet_name)
-
-            # 找到收益列（兼容两种列名）
-            revenue_col = None
-            if '收益金额（元）' in df.columns:
-                revenue_col = '收益金额（元）'
-            elif '收益（元）' in df.columns:
-                revenue_col = '收益（元）'
-
-            if revenue_col is None or '分公司' not in df.columns:
+        xls = pd.ExcelFile(file_path, engine='calamine')
+        for sheet_name, revenue_col in REVENUE_SHEETS:
+            if sheet_name not in xls.sheet_names:
+                exc_logger.add('table14', f'缺少sheet: {sheet_name}')
                 continue
 
-            # 按分公司累加收益
+            df = pd.read_excel(xls, sheet_name=sheet_name, engine='calamine')
+
+            if revenue_col not in df.columns or '分公司' not in df.columns:
+                exc_logger.add('table14', f'sheet {sheet_name} 缺少必要列')
+                continue
+
+            # 筛选指定月份
+            df = df[df['月份'] == month]
+
             for _, row in df.iterrows():
                 branch = str(row['分公司']).strip()
                 # 大小写归一化：含英文字母的名称统一转大写（如"投标服务bu"→"投标服务BU"）
@@ -99,6 +87,39 @@ def load_biaoqiao_revenue_by_branch(file_path):
 
     except Exception as e:
         exc_logger.add('table14', f'读取标桥收益数据失败({file_path}): {e}')
+
+    return revenue_by_branch
+
+
+def load_tongqi_revenue_by_branch(file_path, month):
+    """
+    从标桥收益明细表.xlsx 的「25年」sheet 中筛选指定月份，
+    按分公司累加收益，作为去年同期数据。
+    返回 {分公司: 收益金额} 的字典。
+    """
+    if not os.path.exists(file_path):
+        exc_logger.add('table14', f'标桥收益数据文件不存在: {file_path}')
+        return {}
+
+    revenue_by_branch = {}
+    try:
+        df = pd.read_excel(file_path, sheet_name='25年', engine='calamine')
+
+        if '收益金额（元）' not in df.columns or '分公司' not in df.columns:
+            exc_logger.add('table14', '25年sheet缺少必要列')
+            return {}
+
+        # 筛选指定月份
+        df = df[df['月份'] == month]
+
+        for _, row in df.iterrows():
+            branch = str(row['分公司']).strip()
+            revenue = parse_num(row['收益金额（元）'])
+            if branch and not pd.isna(revenue):
+                revenue_by_branch[branch] = revenue_by_branch.get(branch, 0) + revenue
+
+    except Exception as e:
+        exc_logger.add('table14', f'读取25年sheet失败: {e}')
 
     return revenue_by_branch
 
@@ -157,63 +178,55 @@ def load_prior_data():
 
 def process():
     """主处理逻辑。"""
-    # 1. 加载分公司映射表
-    branch_mapping = load_branch_mapping()
+    # 1. 加载本月标桥收益数据（从4个收益sheet筛选指定月份，按分公司累加）
+    this_revenue = load_biaoqiao_revenue_by_branch(BIAOQIAO_FILE, _month)
 
-    # 2. 加载本月标桥收益数据（按原始分公司名累加）
-    raw_revenue = load_biaoqiao_revenue_by_branch(BIAOQIAO_FILE)
+    # 2. 加载同期收益数据（从25年sheet筛选去年同期月份）
+    tongqi_revenue = load_tongqi_revenue_by_branch(BIAOQIAO_FILE, _month)
 
-    # 3. 映射分公司名称并累加收益
-    mapped_revenue = {}
-    for branch, revenue in raw_revenue.items():
-        # 如果在映射表中，使用映射后的名称；否则使用原名
-        mapped_branch = branch_mapping.get(branch, branch)
-        mapped_revenue[mapped_branch] = mapped_revenue.get(mapped_branch, 0) + revenue
-
-    # 3.5 加载同期标桥收益数据并映射
-    raw_tongqi = load_biaoqiao_revenue_by_branch(TONGQI_FILE)
-    mapped_tongqi = {}
-    for branch, revenue in raw_tongqi.items():
-        mapped_branch = branch_mapping.get(branch, branch)
-        mapped_tongqi[mapped_branch] = mapped_tongqi.get(mapped_branch, 0) + revenue
-
-    # 4. 加载BP数据（按BP表顺序）
+    # 3. 加载BP数据（按BP表顺序）
     bp_data = load_bp_data()
 
-    # 5. 加载上月收益和上月全年收益
+    # 4. 加载上月收益和上月全年收益
     prior_revenue, prior_full_year = load_prior_data()
 
+    # 5. 检查收益数据中不在BP表中的分公司，记录日志并加入（BP总额默认0）
+    bp_branches = set(branch for branch, _ in bp_data)
+    for branch in this_revenue:
+        if branch not in bp_branches:
+            exc_logger.add('table14', f'分公司「{branch}」在收益数据中存在但不在BP表中，BP总额默认0，本月收益: {this_revenue[branch]:.2f}')
+            bp_data.append((branch, 0))
+
     # 6. 构建结果
-    template_branches = set(branch for branch, _ in bp_data)
     rows = []
     seq = 1
     for branch, bp_total in bp_data:
-        this_revenue = mapped_revenue.get(branch, float('nan'))
-        last_revenue = prior_revenue.get(branch, float('nan'))
-        tongqi_revenue = mapped_tongqi.get(branch, float('nan'))
+        cur_revenue = this_revenue.get(branch, float('nan'))
+        last_revenue = prior_revenue.get(branch, 0)  # 上月没数据默认0
+        tq_revenue = tongqi_revenue.get(branch, 0)   # 同期没数据默认0
 
-        # 异常检测：收益为空或负数，模板分公司未找到
-        this_revenue = check_revenue_anomaly('table14', branch, this_revenue, last_revenue)
+        # 异常检测：收益为空或负数
+        cur_revenue = check_revenue_anomaly('table14', branch, cur_revenue, last_revenue)
 
         # 环比变化
-        huanbi = calculate_huanbi(this_revenue, last_revenue)
+        huanbi = calculate_huanbi(cur_revenue, last_revenue)
 
         # 同比变化
-        tongbi = calculate_huanbi(this_revenue, tongqi_revenue)
+        tongbi = calculate_huanbi(cur_revenue, tq_revenue)
 
         # 全年收益：1月=本月收益（新年重置），其他月=上月全年收益+本月收益
         if _month == 1:
-            full_year = this_revenue if not pd.isna(this_revenue) else '/'
+            full_year = cur_revenue if not pd.isna(cur_revenue) else '/'
         else:
             prev_fy = prior_full_year.get(branch, float('nan'))
-            if pd.isna(this_revenue) and pd.isna(prev_fy):
+            if pd.isna(cur_revenue) and pd.isna(prev_fy):
                 full_year = '/'
-            elif pd.isna(this_revenue):
+            elif pd.isna(cur_revenue):
                 full_year = prev_fy
             elif pd.isna(prev_fy):
-                full_year = this_revenue
+                full_year = cur_revenue
             else:
-                full_year = prev_fy + this_revenue
+                full_year = prev_fy + cur_revenue
 
         # BP完成率 = 全年收益 / BP总额
         if pd.isna(bp_total) or bp_total == 0 or full_year == '/' or (isinstance(full_year, float) and pd.isna(full_year)):
@@ -224,7 +237,7 @@ def process():
         rows.append({
             '序': seq,
             '分公司': branch,
-            '本月收益（元）': this_revenue if not pd.isna(this_revenue) else '/',
+            '本月收益（元）': cur_revenue if not pd.isna(cur_revenue) else '/',
             '上月收益（元）': last_revenue if not pd.isna(last_revenue) else '/',
             '环比变化': huanbi,
             '同比变化': tongbi,
@@ -245,6 +258,7 @@ def process():
     else:
         res_df.to_excel(output_file, sheet_name='表格14', index=False)
     print(f'表格十四已保存: {output_file}')
+    exc_logger.save()
 
 
 if __name__ == '__main__':

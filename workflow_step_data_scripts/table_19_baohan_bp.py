@@ -106,8 +106,8 @@ def process():
     # ── 按分公司聚合 ──
     # 本月收益
     this_rev = df26[df26['月'] == this_month].groupby('分公司')['销售毛利(元)'].sum()
-    # 上月收益
-    last_rev = df26[df26['月'] == last_month].groupby('分公司')['销售毛利(元)'].sum()
+    # 上月收益（从上期extract读取）
+    last_rev = prior
     # 全年收益（1月 ~ 本月）
     ytd_rev = df26[df26['月'] <= this_month].groupby('分公司')['销售毛利(元)'].sum()
     # 同比（25年同月）
@@ -115,7 +115,7 @@ def process():
 
     # ── 构建结果 ──
     template_branches = set(bp_dict.keys())
-    all_branches = sorted(set(this_rev.index) | set(last_rev.index) | set(ytd_rev.index))
+    all_branches = sorted(set(this_rev.index) | set(last_rev.keys()) | set(ytd_rev.index))
     res_rows = []
     for branch in all_branches:
         this_val = this_rev.get(branch, 0)
@@ -142,6 +142,11 @@ def process():
         })
 
     res_df = pd.DataFrame(res_rows)
+
+    # 按BP总额降序排序，/ 排最后
+    res_df['_sort_bp'] = res_df['BP总额（元）'].apply(lambda x: float('inf') if pd.isna(x) or x == '/' else -x)
+    res_df = res_df.sort_values('_sort_bp').drop(columns=['_sort_bp']).reset_index(drop=True)
+
     res_df.insert(0, '序', range(1, len(res_df) + 1))
 
     # 格式化 NaN → '/'
