@@ -88,6 +88,10 @@ def main():
         ("Table 13 - 标讯-转化率", "table_13_biaoxun_zhuanhua", "process"),
         ("Table 14 - 标桥-分公司收益", "table_14_biaoqiao_bp", "process"),
         ("Table 19 - 保函-分公司收益", "table_19_baohan_bp", "process"),
+
+        # 段落数据计算 & 生成 docx
+        ("段落数据计算", "paragraphs_data_computed", "process"),
+        ("生成 docx 月报", "fill_docx_model", "process"),
     ]
 
     total_scripts = len(scripts)

@@ -10,7 +10,7 @@ table_02 — 新点e交易-分公司收益（表格二）
 import os
 import pandas as pd
 from utils import (normalize_branch, save_res_df, calculate_huanbi, check_revenue_anomaly,
-                   get_month, get_year, exc_logger, BASE_DIR)
+                   get_month, get_year, exc_logger, BASE_DIR, format_pct, format_number)
 
 # ── 路径配置 ──────────────────────────────────────────────────────────
 _year = get_year()
@@ -52,7 +52,7 @@ def load_prior_table2(extract_file):
         result = {}
         for _, row in df.iterrows():
             key = (str(row['分公司名称']).strip(), str(row['BP类型']).strip())
-            result[key] = parse_num(row['本月收益(元）'])
+            result[key] = parse_num(row['本月收益（元）'])
         return result
     except Exception as e:
         exc_logger.add('table02', f'读取上期 extract 表格2 失败: {e}')
@@ -81,7 +81,7 @@ def load_tongqi_data(tongqi_file):
             df['分公司'] = df['分公司'].map(name_map).fillna(df['分公司'])
 
         # 按分公司汇总收益
-        result = df.groupby('分公司')['收益'].apply(lambda x: x.apply(parse_num).sum()).to_dict()
+        result = df.groupby('分公司')['实得收益'].apply(lambda x: x.apply(parse_num).sum()).to_dict()
         return result
     except Exception as e:
         exc_logger.add('table02', f'读取同期数据失败: {e}')
@@ -134,7 +134,7 @@ def process():
         branch_ytd = ytd_by_branch.get(branch, float('nan'))
         if pd.notna(bp_total) and bp_total > 0 and pd.notna(branch_ytd):
             bp_rate = branch_ytd / bp_total
-            bp_rate_str = f'{bp_rate:.2%}'
+            bp_rate_str = format_pct(bp_rate)
         else:
             bp_rate_str = '/'
 
@@ -152,12 +152,12 @@ def process():
         res_rows.append({
             '分公司名称': branch,
             'BP类型': bp_type,
-            '本月收益(元）': this_val,
-            '上月收益(元）': prev_val,
+            '本月收益（元）': this_val,
+            '上月收益（元）': prev_val,
             '环比变化': calculate_huanbi(this_val, prev_val),
             '同比变化': calculate_huanbi(this_val, tongqi_val),
-            '全年收益(元）': ytd_val,
-            'BP总额(元）': bp_total,
+            '全年收益（元）': ytd_val,
+            'BP总额（元）': bp_total,
             'BP完成比例': bp_rate_str,
         })
 
@@ -166,7 +166,7 @@ def process():
     res_df.insert(0, '序', range(1, len(res_df) + 1))
 
     # 格式化 NaN → '/'
-    for col in ['本月收益(元）', '上月收益(元）', '全年收益(元）', 'BP总额(元）']:
+    for col in ['本月收益（元）', '上月收益（元）', '全年收益（元）', 'BP总额（元）']:
         res_df[col] = res_df[col].apply(lambda x: '/' if pd.isna(x) else x)
 
     # 保存

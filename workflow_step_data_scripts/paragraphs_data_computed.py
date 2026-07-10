@@ -14,8 +14,8 @@ import json
 import pandas as pd
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, os.path.join(BASE_DIR, 'workflow_step_data_scripts'))
-from utils import get_year, get_month
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from utils import get_year, get_month, format_pct, format_number
 
 _year = get_year()
 _month = get_month()
@@ -33,19 +33,26 @@ PRIOR_EXTRACT = os.path.join(BASE_DIR, 'Data', f'{_year}{_month:02d}', 'process_
 
 
 def safe_pct(this_val, last_val):
-    """计算百分比变化，返回格式化字符串。"""
-    if last_val == 0 or pd.isna(last_val) or pd.isna(this_val):
-        return '/'
-    rate = (this_val - last_val) / abs(last_val) * 100
+    """计算百分比变化，返回格式化字符串。NaN按0处理。"""
+    if pd.isna(this_val):
+        this_val = 0
+    if pd.isna(last_val):
+        last_val = 0
+    if last_val == 0:
+        if this_val > 0:
+            return '上升100%'
+        else:
+            return '0.00%'
+    rate = (this_val - last_val) / abs(last_val)
     prefix = '上升' if rate > 0 else '下降'
-    return f'{prefix}{abs(rate):.2f}%'
+    return f'{prefix}{format_pct(abs(rate))}'
 
 
 def fmt(val):
     """数值格式化：保留2位小数，千分位。"""
     if pd.isna(val) or val == 0:
         return '0'
-    return f'{val:,.2f}'
+    return format_number(val)
 
 
 # ── 区域市场化 ─────────────────────────────────────────────────────
@@ -96,7 +103,7 @@ def compute_qysch():
         '区域市场化平台截至总收益': fmt(full_total),
         '区域市场化截至同比': safe_pct(full_total, tongqi_full_total),
         '区域市场化BP截至总额': fmt(bp_total),
-        '区域市场化BP截至完成率': f'{bp_rate:.2%}',
+        '区域市场化BP截至完成率': format_pct(bp_rate),
         '区域市场化SaaS截至收益': fmt(full_saas),
         '区域市场化SaaS收益截至同比': safe_pct(full_saas, tongqi_full_saas),
         '区域市场化落地截至收益': fmt(full_luodi),
@@ -203,7 +210,7 @@ def compute_biaoqiao():
         '截至日期': date_str,
         '标桥全年营收总计': fmt(full_year_revenue),
         '标桥全年BP总额': fmt(bp_total),
-        '标桥全年BP完成率': f'{bp_rate:.2%}',
+        '标桥全年BP完成率': format_pct(bp_rate),
         '标桥本月营收总计': fmt(monthly_revenue),
         '标桥本月营收环比': safe_pct(monthly_revenue, prior_revenue),
         '标桥本月营收同比': safe_pct(monthly_revenue, tongqi_revenue),

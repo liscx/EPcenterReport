@@ -17,7 +17,7 @@ table_01 — 核心数据总览（表格一）
 """
 import os
 import pandas as pd
-from utils import save_res_df, calculate_huanbi, check_revenue_anomaly, get_month, get_year, exc_logger, BASE_DIR
+from utils import save_res_df, calculate_huanbi, check_revenue_anomaly, get_month, get_year, exc_logger, BASE_DIR, format_pct, format_number
 
 # ── 路径配置 ──────────────────────────────────────────────────────────
 _year = get_year()
@@ -361,7 +361,7 @@ def process():
     for col in ['本月收益（元）', '上月收益（元）', '全年收益（元）', 'BP总额（元）']:
         res_df[col] = res_df[col].apply(lambda x: '/' if pd.isna(x) else x)
     res_df['BP完成率'] = res_df['BP完成率'].apply(
-        lambda x: '/' if pd.isna(x) else f'{x:.2%}'
+        lambda x: '/' if pd.isna(x) else format_pct(x)
     )
 
     # 保存到 process_data_result.xlsx（供其他脚本引用）

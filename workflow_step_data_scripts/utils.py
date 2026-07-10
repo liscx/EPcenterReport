@@ -68,19 +68,47 @@ def save_to_sheet(df, sheet_name):
     # 保留函数签名，但不再写入 process_data_result.xlsx
     pass
 
+def format_number(val, decimals=2):
+    """
+    统一数字格式：保留 decimals 位小数，整数不留小数点。
+    例：123.45 → "123.45", 123.0 → "123", 0.50 → "0.5"
+    """
+    if pd.isna(val):
+        return ''
+    val = float(val)
+    formatted = f'{val:.{decimals}f}'
+    if '.' in formatted:
+        formatted = formatted.rstrip('0').rstrip('.')
+    return formatted
+
+
+def format_pct(rate):
+    """
+    统一百分比格式：保留2位小数，整数不留小数点。
+    输入为小数（如0.4567），输出带%号（如"45.67%"）。
+    """
+    if pd.isna(rate):
+        return '0.00%'
+    pct = rate * 100
+    formatted = f'{pct:.2f}'.rstrip('0').rstrip('.')
+    return f'{formatted}%'
+
+
 def calculate_huanbi(this_val, last_val):
     """
-    计算环比变化。
+    计算环比/同比变化。
 
     规则：
     - 上月收益为0，本月大于0 → 返回 "100%"
-    - 上月收益为0，本月也为0 → 返回 "/"
-    - 上月或本月为空 → 返回 ""
+    - 上月收益为0，本月也为0 → 返回 "0.00%"
+    - 上月或本月为空（NaN）→ 按0处理
     - 正常计算：(本月-上月)/上月
     """
-    # 处理空值
-    if pd.isna(this_val) or pd.isna(last_val):
-        return ""
+    # 处理空值：NaN 按0处理
+    if pd.isna(this_val):
+        this_val = 0
+    if pd.isna(last_val):
+        last_val = 0
 
     this_val = float(this_val)
     last_val = float(last_val)
@@ -90,12 +118,12 @@ def calculate_huanbi(this_val, last_val):
         if this_val > 0:
             return "100%"
         else:  # 本月也为0或负数
-            return "/"
+            return "0.00%"
 
     try:
         rate = (this_val - last_val) / last_val
         prefix = "▲" if rate > 0 else "▼" if rate < 0 else ""
-        return f"{prefix}{abs(rate):.2%}"
+        return f"{prefix}{format_pct(abs(rate))}"
     except:
         return ""
 

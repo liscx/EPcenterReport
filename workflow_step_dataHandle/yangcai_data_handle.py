@@ -21,7 +21,7 @@ def extract_tables_from_docx(docx_path):
 
     target_tables = [
         (0, "数据总览"),
-        (2, "分公司表"),
+        (1, "分公司表"),
     ]
 
     result = {}

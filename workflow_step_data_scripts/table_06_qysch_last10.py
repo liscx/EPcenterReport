@@ -11,7 +11,7 @@ table_06 — 区域市场化收益跌幅TOP10（表格六）
 """
 import os
 import pandas as pd
-from utils import save_res_df, get_month, get_year, exc_logger, BASE_DIR
+from utils import save_res_df, get_month, get_year, exc_logger, BASE_DIR, format_number
 
 
 def check_revenue_anomaly_simple(table_name, name, val, val_type="收益"):
@@ -44,10 +44,10 @@ def safe_div(a, b):
 
 def format_pct(val):
     """将小数转为百分比字符串。"""
+    from utils import format_pct as _fmt_pct
     if pd.isna(val):
         return ''
-    pct = val * 100
-    return f'▼{abs(pct):.2f}%'
+    return f'▼{_fmt_pct(abs(val))}'
 
 
 # ── 主处理逻辑 ────────────────────────────────────────────────────────
@@ -73,14 +73,16 @@ def process():
         checked_val = check_revenue_anomaly_simple('table06', name, this_val, "本月收益")
         merged.at[idx, '本月收益'] = checked_val
 
-    # 5. 计算环比下降（负值表示下降）
+    # 5. 计算差值和环比
+    merged['差值'] = merged['本月收益'] - merged['上月收益']
     merged['环比变化'] = merged.apply(
         lambda r: safe_div(r['本月收益'], r['上月收益']) - 1, axis=1
     )
 
-    # 6. 筛选下降的平台，按跌幅排序，取TOP10
-    declined = merged[merged['环比变化'] < 0].copy()
-    declined = declined.sort_values('环比变化', ascending=True).head(10).reset_index(drop=True)
+    # 6. 按差值取跌幅最大的TOP10，再按环比排序
+    declined = merged[merged['差值'] < 0].copy()
+    declined = declined.sort_values('差值', ascending=True).head(10)
+    declined = declined.sort_values('环比变化', ascending=True).reset_index(drop=True)
 
     # 7. 构建输出
     output = pd.DataFrame({

@@ -8,7 +8,7 @@ table_04 — 新点e交易-环比降低TOP10（表格四）
 """
 import os
 import pandas as pd
-from utils import save_res_df, get_month, get_year, exc_logger, BASE_DIR
+from utils import save_res_df, get_month, get_year, exc_logger, BASE_DIR, format_number
 
 
 def check_revenue_anomaly_simple(table_name, name, val, val_type="收益"):
@@ -47,11 +47,13 @@ def parse_num(val):
 
 
 def format_pct(val):
-    """将小数转为百分比字符串，正数▲，负数▼。"""
+    """将已乘100的百分比值转为格式化字符串，正数▲，负数▼。"""
     if pd.isna(val):
         return '/'
+    val_dec = val / 100  # 转回小数，供 format_pct 使用
+    from utils import format_pct as _fmt_pct
     prefix = '▲' if val > 0 else '▼' if val < 0 else ''
-    return f'{prefix}{abs(val):.2f}%'
+    return f'{prefix}{_fmt_pct(abs(val_dec))}'
 
 
 def load_last_month_data(last_month_file):
@@ -79,7 +81,7 @@ def process():
     rows = []
     for _, row in df.iterrows():
         name = str(row.get('专区名称', '')).strip()
-        this_val = parse_num(row.get('5月收益', float('nan')))
+        this_val = parse_num(row.get(f'{_month}月收益', float('nan')))
         pct_str = str(row.get('环比上月收益', '')).strip()
         pct_val = parse_num(pct_str)
 

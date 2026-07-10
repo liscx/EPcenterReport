@@ -32,7 +32,11 @@ EXPORT_TASKS = [
     {
         "url": "https://docs.qq.com/sheet/DTHdRUmJqUGRQeHdS",
         "name": "26年专区上量",
+    },{
+        "url": "https://docs.qq.com/sheet/DVUpvWXVFQUFPVHhC",
+        "name": "标桥收益明细表",
     },
+
 ]
 
 

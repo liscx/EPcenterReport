@@ -83,13 +83,13 @@ def main(year=None, month=None):
         ("导航到运营中心视角", "navigate_to_yunying_center"),
     ]
 
-    # 往期模式（指定了year）只导出标桥，当前模式导出全部
-    if year is None:
-        steps.extend([
-            ("导出新点电子交易平台当月/同期数据", "export_ejy_tongqi"),
-            ("点击区域市场化侧边栏", "click_qysch_sidebar"),
-            ("导出区域市场化数据(当月/上月/全年/同期)", "export_all_qysch_data"),
-        ])
+    # # 往期模式（指定了year）只导出标桥，当前模式导出全部
+    # if year is None:
+    #     steps.extend([
+    #         ("导出新点电子交易平台当月/同期数据", "export_ejy_tongqi"),
+    #         ("点击区域市场化侧边栏", "click_qysch_sidebar"),
+    #         ("导出区域市场化数据(当月/上月/全年/同期)", "export_all_qysch_data"),
+    #     ])
 
     steps.extend([
         ("点击标桥收益统计侧边栏", "click_biaoqiao_sidebar"),

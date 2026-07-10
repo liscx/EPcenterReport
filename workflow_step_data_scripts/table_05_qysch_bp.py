@@ -15,7 +15,7 @@ table_05 — 区域市场化BP（表格五）
 """
 import os
 import pandas as pd
-from utils import save_res_df, get_month, get_year, exc_logger, check_revenue_anomaly, BASE_DIR
+from utils import save_res_df, get_month, get_year, exc_logger, check_revenue_anomaly, BASE_DIR, format_number
 
 # ── 路径配置 ──────────────────────────────────────────────────────────
 _year = get_year()
@@ -45,13 +45,14 @@ def safe_div(a, b):
 
 def format_pct(val):
     """将小数转为百分比字符串，带涨跌箭头。"""
+    from utils import format_pct as _fmt_pct
     if pd.isna(val):
         return '0.00%'
     pct = val * 100
     if pct > 0:
-        return f'▲{pct:.2f}%'
+        return f'▲{_fmt_pct(val)}'
     elif pct < 0:
-        return f'▼{abs(pct):.2f}%'
+        return f'▼{_fmt_pct(abs(val))}'
     else:
         return '0.00%'
 
@@ -97,7 +98,7 @@ def process():
     if os.path.exists(TONGQI_FILE):
         tongqi_df = pd.read_excel(TONGQI_FILE)
         tongqi_df['分公司_映射'] = tongqi_df['分公司'].map(mapping)
-        tongqi_agg = tongqi_df.groupby('分公司_映射')['收益'].sum().reset_index()
+        tongqi_agg = tongqi_df.groupby('分公司_映射')['实得收益'].sum().reset_index()
         tongqi_agg.columns = ['分公司', '同期收益（元）']
     else:
         exc_logger.add('table05', f'同期数据文件不存在: {TONGQI_FILE}')
@@ -131,24 +132,23 @@ def process():
         result.at[idx, '本月收益（元）'] = checked_val
 
     # 8. 计算环比、同比、BP完成比例（使用新的环比规则）
+    from utils import calculate_huanbi
     def calc_huanbi_new(row):
         this_val = row['本月收益（元）']
         last_val = row.get('上月收益（元）', float('nan'))
-        # 使用 utils 中的 calculate_huanbi 函数（已更新规则）
-        from utils import calculate_huanbi
-        return calculate_huanbi(this_val, last_val) if not pd.isna(last_val) else '/'
+        return calculate_huanbi(this_val, last_val)
 
     result['环比变化'] = result.apply(calc_huanbi_new, axis=1)
     # 同比变化：使用同期数据
     def calc_tongbi(row):
         this_val = row['本月收益（元）']
         tongqi_val = row.get('同期收益（元）', float('nan'))
-        from utils import calculate_huanbi
-        return calculate_huanbi(this_val, tongqi_val) if not pd.isna(tongqi_val) else '/'
+        return calculate_huanbi(this_val, tongqi_val)
 
     result['同比变化'] = result.apply(calc_tongbi, axis=1)
+    from utils import format_pct as _fmt_pct_plain
     result['BP完成比例'] = result.apply(
-        lambda r: format_pct(safe_div(r['全年收益（元）'], r['BP总额(元）'])),
+        lambda r: _fmt_pct_plain(safe_div(r['全年收益（元）'], r['BP总额(元）'])),
         axis=1
     )
 

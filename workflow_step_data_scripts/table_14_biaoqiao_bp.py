@@ -11,7 +11,7 @@ table_14 — 标桥BP统计（表格十四）
 """
 import os
 import pandas as pd
-from utils import save_res_df, calculate_huanbi, check_revenue_anomaly, get_month, get_year, exc_logger, BASE_DIR
+from utils import save_res_df, calculate_huanbi, check_revenue_anomaly, get_month, get_year, exc_logger, BASE_DIR, format_pct, format_number
 
 # ── 路径配置 ──────────────────────────────────────────────────────────
 _year = get_year()
@@ -199,7 +199,7 @@ def process():
         huanbi = calculate_huanbi(this_revenue, last_revenue)
 
         # 同比变化
-        tongbi = calculate_huanbi(this_revenue, tongqi_revenue) if not pd.isna(tongqi_revenue) else '/'
+        tongbi = calculate_huanbi(this_revenue, tongqi_revenue)
 
         # 全年收益：1月=本月收益（新年重置），其他月=上月全年收益+本月收益
         if _month == 1:
@@ -219,7 +219,7 @@ def process():
         if pd.isna(bp_total) or bp_total == 0 or full_year == '/' or (isinstance(full_year, float) and pd.isna(full_year)):
             bp_rate = '/'
         else:
-            bp_rate = f"{full_year / bp_total:.2%}"
+            bp_rate = format_pct(full_year / bp_total)
 
         rows.append({
             '序': seq,

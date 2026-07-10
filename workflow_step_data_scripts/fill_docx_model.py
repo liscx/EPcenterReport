@@ -12,6 +12,7 @@ fill_docx_model — 将 extract_data 月报 Excel 数据填入 docx 模型文件
 注意事项：
   - docx 表格仅保留一行表头，数据从第二行开始写入
   - 合并单元格的表格（表格8、表格19）按原始合并结构处理
+  - 表格2（e交易-分公司收益）同一分公司的运营/项目费行，全年收益/BP完成比例纵向合并
   - Excel 中不存在的 sheet 对应的 docx 表格保持原样（仅表头）
 """
 import os
@@ -19,8 +20,9 @@ import json
 import pandas as pd
 from docx import Document
 from docx.oxml.ns import qn
+from docx.oxml import OxmlElement
 from copy import deepcopy
-from utils import get_month, get_year, BASE_DIR
+from utils import get_month, get_year, BASE_DIR, format_number
 
 # ── 路径配置 ──────────────────────────────────────────────────────────
 MODEL_FILE = os.path.join(BASE_DIR, 'model', '运营中心营运产品收益月报_model.docx')
@@ -73,8 +75,13 @@ def create_plain_row(table):
     return new_tr
 
 
-def add_data_row(table, row_data, num_cols):
-    """向 docx 表格追加一行无格式的数据。"""
+def add_data_row(table, row_data, num_cols, color_map=None):
+    """
+    向 docx 表格追加一行无格式的数据。
+
+    Args:
+        color_map: dict {col_idx: 'RRGGBB'}，为指定列的文本设置字体颜色。
+    """
     new_tr = create_plain_row(table)
     table._tbl.append(new_tr)
 
@@ -82,7 +89,11 @@ def add_data_row(table, row_data, num_cols):
     for col_idx in range(min(num_cols, len(new_row.cells))):
         val = row_data[col_idx] if col_idx < len(row_data) else ''
         cell = new_row.cells[col_idx]
-        text = str(val) if not pd.isna(val) else ''
+        # 数字统一格式化：保留2位小数，整数不留小数点
+        if not pd.isna(val) and pd.api.types.is_number(val):
+            text = format_number(val)
+        else:
+            text = str(val) if not pd.isna(val) else ''
         # 清除单元格所有段落，只保留一个空段落
         for p in cell.paragraphs:
             for r in p.runs:
@@ -97,6 +108,30 @@ def add_data_row(table, row_data, num_cols):
                 run = cell.paragraphs[0].add_run(text)
             else:
                 cell.paragraphs[0].runs[0].text = text
+            # 设置字体颜色
+            if color_map and col_idx in color_map:
+                run_obj = cell.paragraphs[0].runs[0]
+                rpr = run_obj._r.get_or_add_rPr()
+                color_el = OxmlElement('w:color')
+                color_el.set(qn('w:val'), color_map[col_idx])
+                rpr.append(color_el)
+
+
+def merge_cells_vertical(table, start_row, count, col_idx):
+    """将 table 中从 start_row 开始的连续 count 行的第 col_idx 列合并为一个单元格。"""
+    for i in range(count):
+        cell = table.cell(start_row + i, col_idx)
+        tc = cell._tc
+        tc_pr = tc.get_or_add_tcPr()
+        if i == 0:
+            # 首行：开始合并
+            v_merge = OxmlElement('w:vMerge')
+            v_merge.set(qn('w:val'), 'restart')
+            tc_pr.append(v_merge)
+        else:
+            # 后续行：继续合并
+            v_merge = OxmlElement('w:vMerge')
+            tc_pr.append(v_merge)
 
 
 def align_columns(df, table):
@@ -138,12 +173,46 @@ def fill_paragraph_placeholders(doc, json_file):
     print(f'占位符替换完成，共替换 {count} 处')
 
 
-def fill_table_from_excel(table, df):
-    """将 DataFrame 数据填入 docx 表格。"""
+def fill_table_from_excel(table, df, merge_cols=None, key_col=0, color_cols=None):
+    """
+    将 DataFrame 数据填入 docx 表格。
+
+    Args:
+        merge_cols: 需要纵向合并单元格的列索引列表。
+                    当连续行的 key_col 列值相同时，这些列的单元格会被合并。
+        key_col: 用于判断合并的列索引（默认为首列）。
+        color_cols: 需要根据值标色的列索引列表。
+                    ▲ 开头标红色，▼ 开头标绿色。
+    """
     num_cols = len(table.columns)
     for _, row in df.iterrows():
         row_data = [row.iloc[i] if i < len(row) else '/' for i in range(num_cols)]
-        add_data_row(table, row_data, num_cols)
+        # 根据值动态生成颜色映射
+        color_map = {}
+        if color_cols:
+            for col_idx in color_cols:
+                if col_idx < len(row_data):
+                    val_str = str(row_data[col_idx])
+                    if val_str.startswith('▲'):
+                        color_map[col_idx] = 'FF0000'  # 红色
+                    elif val_str.startswith('▼'):
+                        color_map[col_idx] = '00B050'  # 绿色
+        add_data_row(table, row_data, num_cols, color_map=color_map)
+
+    # 纵向合并单元格（按指定列值判断连续相同行）
+    if merge_cols:
+        header_rows = len(table.rows) - len(df)  # 表头行数
+        total_rows = len(table.rows)
+        i = header_rows
+        while i < total_rows:
+            key = table.cell(i, key_col).text.strip()
+            count = 1
+            while i + count < total_rows and table.cell(i + count, key_col).text.strip() == key:
+                count += 1
+            if count > 1:
+                for col_idx in merge_cols:
+                    merge_cells_vertical(table, i, count, col_idx)
+            i += count
 
 
 def fill_table_8(table, df):
@@ -223,6 +292,10 @@ def process():
             fill_table_8(table, df)
         elif table_num == 19:
             fill_table_19(table, df)
+        elif table_num == 2:
+            # 表格2：同一分公司的运营/项目费行，合并全年收益、BP完成比例
+            # 环比/同比：上涨标红，下降标绿
+            fill_table_from_excel(table, df, merge_cols=[7, 9], key_col=1, color_cols=[5, 6])
         else:
             fill_table_from_excel(table, df)
 

@@ -41,14 +41,14 @@ def _switch_to_ejy_iframe(driver):
     print("  → 已切换到新点电子交易平台 iframe")
 
 
-def _set_year_month(driver, year, month):
+def _set_year_month(driver, year, month=None):
     """
     在新点电子交易平台页面设置年月条件。
     使用 miniui API 直接设置值。
 
     Args:
         year: 年份，如 2025
-        month: 月份，如 5
+        month: 月份，如 5 或 "1,2,3,4,5"。为 None 则搜索全年（设置为1-当前月）
     """
     _switch_to_ejy_iframe(driver)
 
@@ -67,7 +67,18 @@ def _set_year_month(driver, year, month):
     print(f"  → 已设置年份: {year}")
 
     # 设置月份
-    month_str = str(month)
+    if month is None:
+        # 全年：设置为1,2,3,4,...,当前月报月
+        from datetime import datetime
+        report_month = datetime.today().month - 1
+        if report_month == 0:
+            report_month = 12
+        month_str = ",".join([str(i) for i in range(1, report_month + 1)])
+        print(f"  → 全年模式，设置月份: {month_str}")
+    else:
+        month_str = str(month)
+        print(f"  → 已设置月份: {month_str}")
+
     driver.execute_script(f"""
         var monthBox = mini.get('month');
         if (monthBox) {{
@@ -80,7 +91,6 @@ def _set_year_month(driver, year, month):
             }}
         }}
     """)
-    print(f"  → 已设置月份: {month_str}")
 
     time.sleep(1)
 
@@ -180,21 +190,23 @@ def export_ejy_data(driver, output_dir, year=None, month=None, output_filename=N
         driver: WebDriver 实例
         output_dir: 输出目录
         year: 年份
-        month: 月份
+        month: 月份。为 None 则导出全年数据
         output_filename: 输出文件名
     """
     from datetime import datetime
 
-    if year is None or month is None:
-        # 默认导出同期（去年月报月）
-        today = datetime.today()
-        year = (today.year - 1) if today.month == 1 else today.year
-        month = today.month - 1
-        if month == 0:
-            month = 12
-            year -= 1
+    if year is None:
+        year = datetime.today().year
 
-    report_month = f"{year}-{month:02d}"
+    # 判断是否为全年模式
+    is_full_year = (month is None)
+
+    # 计算报告月份
+    if month is not None:
+        report_month = f"{year}-{month:02d}"
+    else:
+        report_month = f"{year}-全年"
+
     print(f"\n正在导出新点电子交易平台数据: {report_month}")
 
     # 确保输出目录存在
@@ -209,11 +221,13 @@ def export_ejy_data(driver, output_dir, year=None, month=None, output_filename=N
     # 设置年月条件
     _set_year_month(driver, year, month)
 
-    # 点击搜索
-    _click_search(driver, wait_time=5)
+    # 点击搜索（全年模式需要更长等待时间）
+    search_wait = 20 if is_full_year else 5
+    _click_search(driver, wait_time=search_wait)
 
-    # 点击导出按钮
-    _click_export_button(driver, wait_time=5)
+    # 点击导出按钮（全年模式需要更长等待时间）
+    export_wait = 20 if is_full_year else 5
+    _click_export_button(driver, wait_time=export_wait)
 
     # 等待下载完成
     downloaded_file = _wait_for_download(download_dir, existing_files)
@@ -223,7 +237,10 @@ def export_ejy_data(driver, output_dir, year=None, month=None, output_filename=N
 
     # 确定输出文件名
     if output_filename is None:
-        output_filename = "新点电子交易平台同期.xlsx"
+        if is_full_year:
+            output_filename = "新点电子交易平台全年.xlsx"
+        else:
+            output_filename = "新点电子交易平台同期.xlsx"
 
     output_path = os.path.join(output_dir, output_filename)
 
@@ -236,7 +253,7 @@ def export_ejy_data(driver, output_dir, year=None, month=None, output_filename=N
 
 def export_ejy_tongqi(driver, output_dir, year=None):
     """
-    导出新点电子交易平台数据：当月、上月、同期。
+    导出新点电子交易平台数据：当月、上月、全年、同期。
 
     Args:
         driver: WebDriver 实例
@@ -267,23 +284,29 @@ def export_ejy_tongqi(driver, output_dir, year=None):
     print(f"  新点电子交易平台数据导出")
     print(f"  当月: {year}年{report_month}月")
     print(f"  上月: {year}年{prev_month}月")
+    print(f"  全年: {year}年1-{report_month}月")
     print(f"  同期: {last_year}年{report_month}月")
     print(f"{'='*60}")
 
     results = []
 
     # 1. 导出当月数据
-    print(f"\n[1/3] 导出当月数据 ({year}年{report_month}月)...")
+    print(f"\n[1/4] 导出当月数据 ({year}年{report_month}月)...")
     result = export_ejy_data(driver, output_dir, year, report_month, "新点电子交易平台当月.xlsx")
     results.append(("当月", result))
 
     # 2. 导出上月数据
-    print(f"\n[2/3] 导出上月数据 ({year}年{prev_month}月)...")
+    print(f"\n[2/4] 导出上月数据 ({year}年{prev_month}月)...")
     result = export_ejy_data(driver, output_dir, year, prev_month, "新点电子交易平台上月.xlsx")
     results.append(("上月", result))
 
-    # 3. 导出同期数据
-    print(f"\n[3/3] 导出同期数据 ({last_year}年{report_month}月)...")
+    # 3. 导出全年数据
+    print(f"\n[3/4] 导出全年数据 ({year}年1-{report_month}月)...")
+    result = export_ejy_data(driver, output_dir, year, None, "新点电子交易平台全年.xlsx")
+    results.append(("全年", result))
+
+    # 4. 导出同期数据
+    print(f"\n[4/4] 导出同期数据 ({last_year}年{report_month}月)...")
     result = export_ejy_data(driver, output_dir, last_year, report_month, "新点电子交易平台同期.xlsx")
     results.append(("同期", result))
 

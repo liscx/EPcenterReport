@@ -10,7 +10,7 @@ table_09 — 标证通-分公司收益（表格九）
 """
 import os
 import pandas as pd
-from utils import save_res_df, calculate_huanbi, check_revenue_anomaly, get_month, get_year, exc_logger, BASE_DIR
+from utils import save_res_df, calculate_huanbi, check_revenue_anomaly, get_month, get_year, exc_logger, BASE_DIR, format_pct, format_number
 
 # ── 路径配置 ──────────────────────────────────────────────────────────
 _year = get_year()
@@ -117,7 +117,7 @@ def process():
         # 异常检测：收益为空或负数，模板分公司未找到
         this_val = check_revenue_anomaly('table09', full_name, this_val, prev_val, template_branches)
 
-        bp_rate = '/' if pd.isna(bp_val) or pd.isna(ytd_val) or bp_val == 0 else f'{ytd_val / bp_val:.2%}'
+        bp_rate = '/' if pd.isna(bp_val) or pd.isna(ytd_val) or bp_val == 0 else format_pct(ytd_val / bp_val)
 
         res_rows.append({
             '分公司': full_name,

@@ -7,6 +7,7 @@
 2. ejy_data_handle.py - e交易收益月报数据处理
 3. yangcai_data_handle.py - 阳光优采月报数据处理
 4. extract_data_by_report.py - 从运营中心月报提取表格数据
+5. paragraph_export.py - 从 docx 文件中提取段落数据
 
 使用方法：
     cd D:\AutoWorkSkill\normalSkills\centerReport\workflow_step_dataHandle
@@ -78,6 +79,7 @@ def main():
         ("e交易收益月报数据处理", "ejy_data_handle", "main"),
         ("阳光优采月报数据处理", "yangcai_data_handle", "main"),
         ("运营中心月报表格提取", "extract_data_by_report", "main"),
+        ("段落数据提取", "paragraph_export", "process"),
     ]
 
     total_scripts = len(scripts)
