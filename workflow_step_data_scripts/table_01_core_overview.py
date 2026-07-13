@@ -16,6 +16,8 @@ table_01 — 核心数据总览（表格一）
      当前月营收列。此处沿用 extract 的实际行为。
 """
 import os
+import warnings
+warnings.filterwarnings('ignore', message='Workbook contains no default style')
 import pandas as pd
 from utils import save_res_df, calculate_huanbi, check_revenue_anomaly, get_month, get_year, exc_logger, BASE_DIR, format_pct, format_number
 
@@ -28,16 +30,17 @@ PERSIST_DIR = os.path.join(BASE_DIR, 'persistence_data')
 EJY_FILE = os.path.join(DATA_DIR, 'process_data', 'ejy_data.xlsx')
 BZT_FILE = os.path.join(DATA_DIR, 'process_data', 'bzt_data.xlsx')
 SJFW_FILE = os.path.join(DATA_DIR, 'source_data', '数据服务收益明细表.xlsx')
-BIAOQIAO_FILE = os.path.join(DATA_DIR, 'source_data', '营收平台标桥收益数据.xlsx')
+BIAOQIAO_FILE = os.path.join(DATA_DIR, 'source_data', '标桥收益明细表.xlsx')
 QYSCH_FILE = os.path.join(DATA_DIR, 'source_data', '区域市场化当月.xlsx')
+QYSCH_FULL_FILE = os.path.join(DATA_DIR, 'source_data', '区域市场化全年.xlsx')
 BP_FILE = os.path.join(PERSIST_DIR, 'bp数据表.xlsx')
 
 # 同期数据（去年同期）
 _prior_year = _year - 1
 TONGQI_DIR = os.path.join(BASE_DIR, 'Data', f'{_prior_year}{_month:02d}')
-TONGQI_EJY_FILE = os.path.join(TONGQI_DIR, 'source_data', '新点电子交易平台当月.xlsx')
-TONGQI_BIAOQIAO_FILE = os.path.join(TONGQI_DIR, 'source_data', '营收平台标桥收益数据.xlsx')
-TONGQI_QYSCH_FILE = os.path.join(TONGQI_DIR, 'source_data', '区域市场化当月.xlsx')
+TONGQI_EJY_FILE = os.path.join(DATA_DIR, 'source_data', '新点电子交易平台同期.xlsx')  # 从当前月份目录下的同期文件读取
+TONGQI_BIAOQIAO_FILE = os.path.join(DATA_DIR, 'source_data', '标桥收益明细表.xlsx')  # 从「25年」sheet读取同期数据
+TONGQI_QYSCH_FILE = os.path.join(DATA_DIR, 'source_data', '区域市场化同期.xlsx')  # 从当前月份目录下的同期文件读取
 
 # 上期 extract = Data/{当前报告月}/process_data/extract_data{上月}月报.xlsx
 _prior_month = _month - 1 if _month > 1 else 12
@@ -58,11 +61,11 @@ PRODUCTS = [
     {'name': '传统介质',               'dept': '投标服务产品部',     'source_type': 'bzt'},
     {'name': '专家云签',               'dept': '投标服务产品部',     'source_type': 'bzt'},
     {'name': '电子签章',               'dept': '投标服务产品部',     'source_type': 'bzt'},
-    {'name': '投标文件制作软件(营运）', 'dept': '投标服务产品部',     'source_type': 'biaoqiao', 'biaoqiao_sheets': ['标桥工具版本', '其他营运项目']},
+    {'name': '投标文件制作软件(营运）', 'dept': '投标服务产品部',     'source_type': 'biaoqiao', 'biaoqiao_sheets': ['投标']},
     {'name': 'AI编标',                 'dept': '投标服务产品部',     'source_type': 'biaoqiao', 'biaoqiao_sheets': ['AI编标']},
-    {'name': '智能排版',               'dept': '投标服务产品部',     'source_type': 'biaoqiao', 'biaoqiao_sheets': ['蔓延排版精灵', '云端保排版王']},
-    {'name': '标书检查（含清标工具）', 'dept': '投标服务产品部',     'source_type': 'biaoqiao', 'biaoqiao_sheets': ['标书检查', '清标工具']},
-    {'name': '素材市场',               'dept': '投标服务产品部',     'source_type': 'none'},
+    {'name': '智能排版',               'dept': '投标服务产品部',     'source_type': 'biaoqiao', 'biaoqiao_sheets': ['排版']},
+    {'name': '标书检查（含清标工具）', 'dept': '投标服务产品部',     'source_type': 'biaoqiao', 'biaoqiao_sheets': ['标书检查']},
+    {'name': '素材市场',               'dept': '投标服务产品部',     'source_type': 'biaoqiao', 'biaoqiao_sheets': ['素材市场']},
     {'name': '组合营销',               'dept': '投标服务产品部',     'source_type': 'none'},
     {'name': '统一支付平台',           'dept': '数据服务产品部',     'source_type': 'sjfw', 'sjfw_module': '统一支付平台（营运）'},
     {'name': '电子投标保函平台',       'dept': '数据服务产品部',     'source_type': 'sjfw', 'sjfw_module': '电子投标保函平台（营运）'},
@@ -71,6 +74,17 @@ PRODUCTS = [
     {'name': '招采供应链金融',         'dept': '数据服务产品部',     'source_type': 'sjfw', 'sjfw_module': '招采供应链金融（营运）'},
     {'name': '标书检查（排版）责任险', 'dept': '数据服务产品部',     'source_type': 'sjfw', 'sjfw_module': '标书检查'},
     {'name': '小散工程备案登记系统',   'dept': '数据服务产品部',     'source_type': 'sjfw', 'sjfw_module': '小散'},
+]
+
+
+# ── 收益sheet定义 ────────────────────────────────────────────────────
+# (sheet名, 收益列名)
+REVENUE_SHEETS = [
+    ('投标', '收益金额（元）'),
+    ('排版', '收益金额（元）'),
+    ('AI编标', '收益金额（元）'),
+    ('标书检查', '收益'),
+    ('素材市场', '收益金额（元）'),
 ]
 
 
@@ -100,12 +114,36 @@ def load_ejy_total(ejy_df, month):
     """
     e交易类产品本月收益：ejy_data「分公司BP」sheet 所有行的
     {month}月收益（元）列求和。
+    注意：ejy_data 中每个分公司有两行（运营和项目费），需要累加两行的值。
     """
     col = f'{month}月收益（元）'
     if col not in ejy_df.columns:
         exc_logger.add('table01', f'ejy_data 缺少列: {col}')
         return 0
-    return ejy_df[col].apply(parse_num).sum()
+
+    # 跳过第一行（表头）
+    df_data = ejy_df.iloc[1:]
+
+    return df_data[col].apply(parse_num).sum()
+
+
+def load_ejy_full_year(ejy_df):
+    """
+    e交易类产品全年收益：直接从 ejy_data 的「全年收益总金额（元）」列读取。
+    该列已经是累计值，无需手动累加。
+    注意：ejy_data 中每个分公司有两行（运营和项目费），但全年收益相同，需要按分公司去重。
+    """
+    if '全年收益总金额（元）' not in ejy_df.columns:
+        exc_logger.add('table01', 'ejy_data 缺少列: 全年收益总金额（元）')
+        return float('nan')
+
+    # 跳过第一行（表头）
+    df_data = ejy_df.iloc[1:]
+
+    # 按分公司去重（取第一行）
+    df_unique = df_data.drop_duplicates(subset='分公司名称', keep='first')
+
+    return df_unique['全年收益总金额（元）'].apply(parse_num).sum()
 
 
 def load_bzt_revenue(bzt_df, product_name, month):
@@ -128,6 +166,33 @@ def load_bzt_revenue(bzt_df, product_name, month):
     return 0
 
 
+def load_bzt_full_year(bzt_df, product_name, month):
+    """
+    bzt类产品全年收益：累加 1 月到当前月的营收列。
+    列名存在编码差异：1-2月为 {元），3-4月为 （元）。
+    """
+    row = bzt_df[bzt_df['产品名称'] == product_name]
+    if row.empty:
+        exc_logger.add('table01', f'bzt_data 中未找到产品: {product_name}')
+        return float('nan')
+
+    total = 0
+    for m in range(1, month + 1):
+        # 尝试两种列名格式（编码差异）
+        col_found = False
+        for col in [f'{m}月营收（元）', f'{m}月营收{{元）']:
+            if col in bzt_df.columns:
+                val = parse_num(row.iloc[0][col])
+                # 将 nan 当作 0 处理
+                total += val if not pd.isna(val) else 0
+                col_found = True
+                break
+        if not col_found:
+            exc_logger.add('table01', f'{product_name}: 未找到 {m}月营收 列')
+
+    return total
+
+
 def load_sjfw_revenue(sjfw_df, module_keyword, month):
     """
     数据服务类产品本月收益：数据服务收益明细表，
@@ -147,10 +212,65 @@ def load_sjfw_revenue(sjfw_df, module_keyword, month):
     return matched['销售毛利(元)'].apply(parse_num).sum()
 
 
-def load_biaoqiao_revenue(biaoqiao_file, sheet_names):
+def load_sjfw_full_year(sjfw_df, module_keyword, month):
     """
-    标桥类产品收益：从标桥收益数据文件中读取指定sheet，
-    对各sheet的「收益金额（元）」或「收益（元）」列求和。
+    数据服务类产品全年收益：筛选 1 月到当前月的数据，
+    按模块名筛选，对「销售毛利(元)」求和。
+    """
+    if sjfw_df is None or sjfw_df.empty:
+        return 0
+
+    # 筛选 1 月到当前月
+    df_year = sjfw_df[(sjfw_df['月'] >= 1) & (sjfw_df['月'] <= month)]
+    if df_year.empty:
+        return 0
+
+    matched = df_year[df_year['模块'].str.contains(module_keyword, na=False)]
+    if matched.empty:
+        return 0
+
+    return matched['销售毛利(元)'].apply(parse_num).sum()
+
+
+def load_sjfw_tongqi(sjfw_file, module_keyword, month):
+    """
+    数据服务类产品同期收益：从数据服务收益明细表的「25年」sheet 中，
+    筛选指定月份，按模块名筛选，对「销售毛利(元)」求和。
+    """
+    if not os.path.exists(sjfw_file):
+        exc_logger.add('table01', f'数据服务收益明细表不存在: {sjfw_file}')
+        return float('nan')
+
+    try:
+        xls = pd.ExcelFile(sjfw_file, engine='calamine')
+        if '25年' not in xls.sheet_names:
+            exc_logger.add('table01', '数据服务收益明细表缺少25年sheet')
+            return float('nan')
+
+        df = pd.read_excel(xls, sheet_name='25年', engine='calamine')
+        if '月' not in df.columns or '模块' not in df.columns or '销售毛利(元)' not in df.columns:
+            exc_logger.add('table01', '25年sheet缺少必要列')
+            return float('nan')
+
+        # 筛选指定月份
+        df_month = df[df['月'] == month]
+        if df_month.empty:
+            return 0
+
+        matched = df_month[df_month['模块'].str.contains(module_keyword, na=False)]
+        if matched.empty:
+            return 0
+
+        return matched['销售毛利(元)'].apply(parse_num).sum()
+    except Exception as e:
+        exc_logger.add('table01', f'读取数据服务同期数据失败: {e}')
+        return float('nan')
+
+
+def load_biaoqiao_revenue(biaoqiao_file, sheet_names, month):
+    """
+    标桥类产品收益：从标桥收益明细表.xlsx 中读取指定sheet，
+    筛选指定月份后，对各sheet的收益列求和。
     若文件不存在或指定sheet均不存在，返回 NaN（而非0）。
     """
     if not os.path.exists(biaoqiao_file):
@@ -160,25 +280,112 @@ def load_biaoqiao_revenue(biaoqiao_file, sheet_names):
     total = 0
     found_any = False
     try:
-        xls = pd.ExcelFile(biaoqiao_file)
+        xls = pd.ExcelFile(biaoqiao_file, engine='calamine')
         for sheet_name in sheet_names:
             if sheet_name not in xls.sheet_names:
                 exc_logger.add('table01', f'标桥收益数据缺少sheet: {sheet_name}')
                 continue
             found_any = True
-            df = pd.read_excel(xls, sheet_name=sheet_name)
-            # 兼容两种列名：收益金额（元）或 收益（元）
-            if '收益金额（元）' in df.columns:
-                total += df['收益金额（元）'].apply(parse_num).sum()
-            elif '收益（元）' in df.columns:
-                total += df['收益（元）'].apply(parse_num).sum()
-            else:
+            df = pd.read_excel(xls, sheet_name=sheet_name, engine='calamine')
+
+            # 从 REVENUE_SHEETS 中找到对应的收益列名
+            revenue_col = None
+            for s_name, col_name in REVENUE_SHEETS:
+                if s_name == sheet_name:
+                    revenue_col = col_name
+                    break
+
+            if revenue_col is None or revenue_col not in df.columns:
                 exc_logger.add('table01', f'sheet {sheet_name} 缺少收益列')
+                continue
+
+            # 筛选指定月份
+            if '月份' not in df.columns:
+                exc_logger.add('table01', f'sheet {sheet_name} 缺少月份列')
+                continue
+
+            df_month = df[df['月份'] == month]
+            total += df_month[revenue_col].apply(parse_num).sum()
     except Exception as e:
         exc_logger.add('table01', f'读取标桥收益数据失败: {e}')
         return float('nan')
 
     return total if found_any else float('nan')
+
+
+def load_biaoqiao_full_year(biaoqiao_file, sheet_names, month):
+    """
+    标桥类产品全年收益：从标桥收益明细表.xlsx 中读取指定sheet，
+    筛选 1 月到当前月的数据，对各sheet的收益列求和。
+    若文件不存在或指定sheet均不存在，返回 NaN（而非0）。
+    """
+    if not os.path.exists(biaoqiao_file):
+        exc_logger.add('table01', f'标桥收益数据文件不存在: {biaoqiao_file}')
+        return float('nan')
+
+    total = 0
+    found_any = False
+    try:
+        xls = pd.ExcelFile(biaoqiao_file, engine='calamine')
+        for sheet_name in sheet_names:
+            if sheet_name not in xls.sheet_names:
+                exc_logger.add('table01', f'标桥收益数据缺少sheet: {sheet_name}')
+                continue
+            found_any = True
+            df = pd.read_excel(xls, sheet_name=sheet_name, engine='calamine')
+
+            # 从 REVENUE_SHEETS 中找到对应的收益列名
+            revenue_col = None
+            for s_name, col_name in REVENUE_SHEETS:
+                if s_name == sheet_name:
+                    revenue_col = col_name
+                    break
+
+            if revenue_col is None or revenue_col not in df.columns:
+                exc_logger.add('table01', f'sheet {sheet_name} 缺少收益列')
+                continue
+
+            # 筛选 1 月到当前月
+            if '月份' not in df.columns:
+                exc_logger.add('table01', f'sheet {sheet_name} 缺少月份列')
+                continue
+
+            df_year = df[(df['月份'] >= 1) & (df['月份'] <= month)]
+            total += df_year[revenue_col].apply(parse_num).sum()
+    except Exception as e:
+        exc_logger.add('table01', f'读取标桥收益数据失败: {e}')
+        return float('nan')
+
+    return total if found_any else float('nan')
+
+
+def load_biaoqiao_tongqi_revenue(biaoqiao_file, month):
+    """
+    标桥类产品同期收益：从标桥收益明细表.xlsx 的「25年」sheet 中筛选指定月份，
+    对「收益金额（元）」列求和。
+    若文件不存在或sheet不存在，返回 NaN（而非0）。
+    """
+    if not os.path.exists(biaoqiao_file):
+        exc_logger.add('table01', f'标桥收益数据文件不存在: {biaoqiao_file}')
+        return float('nan')
+
+    try:
+        xls = pd.ExcelFile(biaoqiao_file, engine='calamine')
+        if '25年' not in xls.sheet_names:
+            exc_logger.add('table01', '标桥收益数据缺少25年sheet')
+            return float('nan')
+
+        df = pd.read_excel(xls, sheet_name='25年', engine='calamine')
+        if '收益金额（元）' not in df.columns or '月份' not in df.columns:
+            exc_logger.add('table01', '25年sheet缺少必要列')
+            return float('nan')
+
+        # 筛选指定月份
+        df_month = df[df['月份'] == month]
+        return df_month['收益金额（元）'].apply(parse_num).sum()
+    except Exception as e:
+        exc_logger.add('table01', f'读取标桥同期数据失败: {e}')
+        return float('nan')
 
 
 def load_ejy_tongqi(ejy_file):
@@ -209,15 +416,24 @@ def load_qysch_revenue(qysch_file):
         exc_logger.add('table01', f'区域市场化当月文件不存在: {qysch_file}')
         return 0
 
+
+def load_qysch_full_year(qysch_full_file):
+    """
+    区域市场化全年收益：从区域市场化全年.xlsx 中读取所有分公司「实得收益」列求和。
+    """
+    if not os.path.exists(qysch_full_file):
+        exc_logger.add('table01', f'区域市场化全年文件不存在: {qysch_full_file}')
+        return float('nan')
+
     try:
-        df = pd.read_excel(qysch_file)
+        df = pd.read_excel(qysch_full_file)
         if '实得收益' in df.columns:
             return df['实得收益'].apply(parse_num).sum()
         else:
-            exc_logger.add('table01', '区域市场化当月文件缺少「实得收益」列')
+            exc_logger.add('table01', '区域市场化全年文件缺少「实得收益」列')
             return 0
     except Exception as e:
-        exc_logger.add('table01', f'读取区域市场化数据失败: {e}')
+        exc_logger.add('table01', f'读取区域市场化全年数据失败: {e}')
         return 0
 
 
@@ -306,7 +522,7 @@ def process():
         elif source_type == 'sjfw':
             this_revenue = load_sjfw_revenue(sjfw_df, p['sjfw_module'], month)
         elif source_type == 'biaoqiao':
-            this_revenue = load_biaoqiao_revenue(BIAOQIAO_FILE, p['biaoqiao_sheets'])
+            this_revenue = load_biaoqiao_revenue(BIAOQIAO_FILE, p['biaoqiao_sheets'], month)
         elif source_type == 'qysch':
             this_revenue = load_qysch_revenue(QYSCH_FILE)
         else:
@@ -318,11 +534,28 @@ def process():
         # ── 上期数据（上月收益、全年收益）──
         prev_revenue, prev_full_year = load_prior_data(PRIOR_EXTRACT, name)
 
-        # ── 全年收益 = 上期全年收益 + 本月收益 ──
-        if pd.isna(prev_full_year) and pd.isna(this_revenue):
-            full_year = float('nan')
+        # ── 全年收益计算 ──
+        if source_type == 'ejy':
+            # ejy 直接从源数据读取全年累计值
+            full_year = load_ejy_full_year(ejy_df)
+        elif source_type == 'bzt':
+            # bzt 累加 1 月到当前月的营收列
+            full_year = load_bzt_full_year(bzt_df, name, month)
+        elif source_type == 'sjfw':
+            # 数据服务类 筛选 1 月到当前月的数据求和
+            full_year = load_sjfw_full_year(sjfw_df, p['sjfw_module'], month)
+        elif source_type == 'biaoqiao':
+            # 标桥类 筛选 1 月到当前月的数据求和
+            full_year = load_biaoqiao_full_year(BIAOQIAO_FILE, p['biaoqiao_sheets'], month)
+        elif source_type == 'qysch':
+            # 区域市场化 直接从全年文件读取
+            full_year = load_qysch_full_year(QYSCH_FULL_FILE)
         else:
-            full_year = (prev_full_year or 0) + (this_revenue or 0)
+            # 其他类型：上期全年收益 + 本月收益
+            if pd.isna(prev_full_year) and pd.isna(this_revenue):
+                full_year = float('nan')
+            else:
+                full_year = (prev_full_year or 0) + (this_revenue or 0)
 
         # ── 环比变化 ──
         huanbi = calculate_huanbi(this_revenue, prev_revenue)
@@ -331,7 +564,9 @@ def process():
         if source_type == 'ejy':
             tongqi_revenue = tongqi_ejy_total
         elif source_type == 'biaoqiao':
-            tongqi_revenue = load_biaoqiao_revenue(TONGQI_BIAOQIAO_FILE, p['biaoqiao_sheets'])
+            tongqi_revenue = load_biaoqiao_tongqi_revenue(TONGQI_BIAOQIAO_FILE, month)
+        elif source_type == 'sjfw':
+            tongqi_revenue = load_sjfw_tongqi(SJFW_FILE, p['sjfw_module'], month)
         elif source_type == 'qysch':
             tongqi_revenue = load_qysch_revenue(TONGQI_QYSCH_FILE)
         else:

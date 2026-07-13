@@ -91,7 +91,11 @@ def process():
     # ── 动态列名 ──
     rev_col = f'{year}年{month}月'
     yoy_col = '同比变化'
-    ytd_col = f'{year}年1—{month}月\n总收益（元）'
+    ytd_col = None
+    for col in df.columns:
+        if '总收益' in str(col):
+            ytd_col = col
+            break
 
     if rev_col not in df.columns:
         exc_logger.add('table09', f'分公司详情缺少列: {rev_col}')
@@ -131,6 +135,10 @@ def process():
         })
 
     res_df = pd.DataFrame(res_rows)
+
+    # 按本月收益降序排序
+    res_df = res_df.sort_values(by='本月收益(元）', ascending=False, na_position='last')
+    res_df = res_df.reset_index(drop=True)
     res_df.insert(0, '序', range(1, len(res_df) + 1))
 
     # 格式化 NaN → '/'

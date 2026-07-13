@@ -118,7 +118,7 @@ def add_data_row(table, row_data, num_cols, color_map=None):
 
 
 def merge_cells_vertical(table, start_row, count, col_idx):
-    """将 table 中从 start_row 开始的连续 count 行的第 col_idx 列合并为一个单元格。"""
+    """将 table 中从 start_row 开始的连续 count 行的第 col_idx 列合并为一个单元格，并设置居中对齐。"""
     for i in range(count):
         cell = table.cell(start_row + i, col_idx)
         tc = cell._tc
@@ -132,6 +132,16 @@ def merge_cells_vertical(table, start_row, count, col_idx):
             # 后续行：继续合并
             v_merge = OxmlElement('w:vMerge')
             tc_pr.append(v_merge)
+
+    # 设置首行单元格的垂直居中对齐
+    first_cell = table.cell(start_row, col_idx)
+    for p in first_cell.paragraphs:
+        p.alignment = 1  # 1 = center（水平居中）
+        # 设置垂直居中
+        pPr = p._p.get_or_add_pPr()
+        vAlign = OxmlElement('w:vAlign')
+        vAlign.set(qn('w:val'), 'center')
+        pPr.append(vAlign)
 
 
 def align_columns(df, table):
@@ -353,6 +363,9 @@ def process():
             fill_table_8(table, df)
         elif table_num == 19:
             fill_table_19(table, df)
+        elif table_num == 1:
+            # 表格1：产品线列需要合并居中
+            fill_table_from_excel(table, df, merge_cols=[0], key_col=0, color_cols=color_cols)
         elif table_num == 2:
             # 表格2：同一分公司的运营/项目费行，合并全年收益、BP完成比例
             fill_table_from_excel(table, df, merge_cols=[7, 9], key_col=1, color_cols=color_cols)
