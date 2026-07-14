@@ -416,6 +416,17 @@ def load_qysch_revenue(qysch_file):
         exc_logger.add('table01', f'区域市场化当月文件不存在: {qysch_file}')
         return 0
 
+    try:
+        df = pd.read_excel(qysch_file)
+        if '实得收益' in df.columns:
+            return df['实得收益'].apply(parse_num).sum()
+        else:
+            exc_logger.add('table01', '区域市场化当月文件缺少「实得收益」列')
+            return 0
+    except Exception as e:
+        exc_logger.add('table01', f'读取区域市场化当月数据失败: {e}')
+        return 0
+
 
 def load_qysch_full_year(qysch_full_file):
     """

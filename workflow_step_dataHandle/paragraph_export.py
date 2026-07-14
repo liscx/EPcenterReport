@@ -28,7 +28,7 @@ OUTPUT_JSON = os.path.join(BASE_DIR, 'Data', f'{_year}{_month:02d}', 'res_data',
 
 # 各 docx 文件及要提取的段落 {文件名: {段落索引: 键名}}
 DOCX_MAP = {
-    'e交易收益月报.docx': {4: 'ejy1', 5: 'ejy2', 6: 'ejy3'},
+    'e交易收益月报.docx': {4: 'ejy1', 5: 'ejy2', 6: 'ejy3', 7: "ejy4"},
     '【标证通】月报.docx': {3: 'bzt1', 7: 'bzt2', 42: 'bzt3'},
 }
 

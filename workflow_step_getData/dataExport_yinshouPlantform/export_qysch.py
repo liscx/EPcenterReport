@@ -344,9 +344,14 @@ def export_all_qysch_data(driver, output_dir, year=None):
     results.append(("全年", result))
 
     # 4. 导出同期数据（去年月报月）
-    print(f"\n[4/4] 导出同期数据 ({last_year}年{report_month}月)...")
+    print(f"\n[4/5] 导出同期数据 ({last_year}年{report_month}月)...")
     result = export_qysch_data(driver, output_dir, last_year, report_month, "区域市场化同期.xlsx")
     results.append(("同期", result))
+
+    # 5. 导出同期全年数据（去年1-月报月）
+    print(f"\n[5/5] 导出同期全年数据 ({last_year}年1-{report_month}月)...")
+    result = export_qysch_data(driver, output_dir, last_year, None, "区域市场化同期全年.xlsx")
+    results.append(("同期全年", result))
 
     # 打印摘要
     print(f"\n{'='*60}")

@@ -237,7 +237,7 @@ def fill_table_8(table, df):
         add_data_row(table, row_data, num_cols)
 
 
-def fill_table_19(table, df):
+def fill_table_19(table, df, color_cols=None):
     """
     表格19（投标保函-平台销售情况）特殊处理：
     docx 模型只有表头行，需要追加新行。
@@ -245,13 +245,24 @@ def fill_table_19(table, df):
     num_cols = len(table.columns)
     for _, row in df.iterrows():
         row_data = [row.iloc[i] if i < len(row) else '/' for i in range(num_cols)]
-        add_data_row(table, row_data, num_cols)
+        # 根据值动态生成颜色映射
+        color_map = {}
+        if color_cols:
+            for col_idx in color_cols:
+                if col_idx < len(row_data):
+                    val_str = str(row_data[col_idx])
+                    if val_str.startswith('▲'):
+                        color_map[col_idx] = 'FF0000'  # 红色
+                    elif val_str.startswith('▼'):
+                        color_map[col_idx] = '00B050'  # 绿色
+        add_data_row(table, row_data, num_cols, color_map=color_map)
 
 
 def fill_table_7(table, df, color_cols=None):
     """
     表格7（阳光优采-核心指标）特殊处理：
     docx 模型有表头行（合并2列）和空行，需要填充到空行中。
+    第一列相同值会纵向合并居中。
     """
     num_cols = len(table.columns)
     rows = table.rows
@@ -301,6 +312,18 @@ def fill_table_7(table, df, color_cols=None):
         else:
             # 如果当前行不存在，添加新行
             add_data_row(table, row_data, num_cols, color_map=color_map)
+
+    # 第一列相同值纵向合并居中
+    total_rows = len(table.rows)
+    i = start_row
+    while i < total_rows:
+        key = table.cell(i, 0).text.strip()
+        count = 1
+        while i + count < total_rows and table.cell(i + count, 0).text.strip() == key:
+            count += 1
+        if count > 1:
+            merge_cells_vertical(table, i, count, 0)
+        i += count
 
 
 def process():
@@ -362,7 +385,7 @@ def process():
         if table_num == 8:
             fill_table_8(table, df)
         elif table_num == 19:
-            fill_table_19(table, df)
+            fill_table_19(table, df, color_cols=color_cols)
         elif table_num == 1:
             # 表格1：产品线列需要合并居中
             fill_table_from_excel(table, df, merge_cols=[0], key_col=0, color_cols=color_cols)

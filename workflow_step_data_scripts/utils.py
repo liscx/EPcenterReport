@@ -116,9 +116,9 @@ def calculate_huanbi(this_val, last_val):
     # 上月为0的特殊处理
     if last_val == 0:
         if this_val > 0:
-            return "100%"
+            return "▲100%"
         else:  # 本月也为0或负数
-            return "0.00%"
+            return "/"
 
     try:
         rate = (this_val - last_val) / last_val
