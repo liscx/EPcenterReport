@@ -115,13 +115,6 @@ def main(current_only=False, last_year_only=False):
             "args": [],
         })
 
-    if not current_only:
-        scripts.append({
-            "name": f"营收平台数据导出（去年同期 {last_year}-{last_year_month:02d}）",
-            "path": yinshou_script,
-            "args": ["--year", str(last_year), "--month", str(last_year_month)],
-        })
-
     scripts.append({
         "name": "腾讯文档批量导出",
         "path": table_script,
