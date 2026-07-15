@@ -4,8 +4,10 @@
 
 执行顺序：
 1. login.py - 登录营收平台并进入运营中心视角
-2. export_biaoqiao.py - 标桥收益统计筛选与导出
-3. export_qingbiao.py - 清标工具数据导出
+2. export_ejy.py - 新点电子交易平台数据导出
+3. export_qysch.py - 区域市场化数据导出
+4. export_biaoxun.py - 标讯收益数据导出
+5. export_qingbiao.py - 清标工具数据导出
 
 使用方法：
     cd dataExport_yinshouPlantform
@@ -67,6 +69,9 @@ def main(year=None, month=None):
     from export_ejy import (
         export_ejy_tongqi,
     )
+    from export_biaoxun import (
+        export_all_biaoxun_data,
+    )
 
     # 输出目录：Data/{月份}/source_data
     project_root = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -99,6 +104,12 @@ def main(year=None, month=None):
         ("采集清标工具数据并导出Excel", "export_qingbiao_data"),
     ])
 
+    # 标讯在"产品视角"页面（非运营中心视角），放在最后执行，避免影响前面的导出
+    if year is None:
+        steps.append(
+            ("导出标讯收益数据(当月/上月/全年/同期)", "export_all_biaoxun_data"),
+        )
+
     total_steps = len(steps)
     results = []
     overall_start = time.time()
@@ -116,6 +127,7 @@ def main(year=None, month=None):
         "export_qingbiao_data": lambda d: export_qingbiao_data(d, output_dir, year, month),
         "click_qysch_sidebar": click_qysch_sidebar,
         "export_all_qysch_data": lambda d: export_all_qysch_data(d, output_dir, year),
+        "export_all_biaoxun_data": lambda d: export_all_biaoxun_data(d, output_dir, year),
     }
 
     for idx, (display_name, func_name) in enumerate(steps, 1):
